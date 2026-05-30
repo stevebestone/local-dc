@@ -1,0 +1,35 @@
+# Lima VM for k3s + KubeVirt datacenter emulation
+images:
+  - location: "https://cloud-images.ubuntu.com/releases/24.04/release/ubuntu-24.04-server-cloudimg-arm64.img"
+    arch: "aarch64"
+
+cpus: 6
+memory: "10GiB"
+disk: "80GiB"
+
+# Use Apple's native Virtualization.framework for best performance
+vmType: "vz"
+
+vmOpts:
+  vz:
+    rosetta:
+      enabled: true
+      binfmt: true
+    nestedVirtualization: true
+
+mountType: "virtiofs"
+
+# Provision k3s at boot
+provision:
+  - mode: system
+    script: |
+      #!/bin/bash
+      set -eux -o pipefail
+      # Install k3s
+      curl -sfL https://get.k3s.io | sh -
+      # Make kubeconfig readable
+      chmod 644 /etc/rancher/k3s/k3s.yaml
+      # Wait for k3s to be ready
+      until /usr/local/bin/kubectl get nodes | grep -q " Ready"; do
+        sleep 5
+      done
