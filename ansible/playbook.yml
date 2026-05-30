@@ -1,0 +1,374 @@
+---
+# Datacenter-in-a-Box: k3s + KubeVirt on bare-metal Linux
+# Supports: Ubuntu/Debian, Fedora, and Bazzite/Fedora Atomic (OSTree)
+#
+# Usage:
+#   ansible-playbook -i inventory.yml playbook.yml --become
+#
+- name: Datacenter-in-a-Box Setup
+  hosts: localhost
+  become: true
+  gather_facts: true
+
+  vars:
+    kubevirt_stable_url: https://storage.googleapis.com/kubevirt-prow/release/kubevirt/kubevirt/stable.txt
+    cdi_releases_url: https://api.github.com/repos/kubevirt/containerized-data-importer/releases/latest
+    k3s_kubeconfig: /etc/rancher/k3s/k3s.yaml
+    manifests_dir: "{{ playbook_dir }}/manifests"
+    deploy_user: "{{ ansible_env.SUDO_USER | default(ansible_user_id) }}"
+    deploy_home: "{{ lookup('env', 'HOME') if ansible_env.SUDO_USER is not defined else '/home/' + deploy_user }}"
+    # Set true to deploy and start the CirrOS demo VM for verification
+    deploy_demo_vm: true
+    # Detect immutable OSTree distros (Bazzite, Silverblue, etc.)
+    is_ostree: "{{ ansible_pkg_mgr == 'atomic_container' or (lookup('pipe', 'command -v rpm-ostree 2>/dev/null', errors='ignore') | length > 0) }}"
+
+  pre_tasks:
+    # ─── Pre-flight checks ─────────────────────────────────────────
+    - name: Verify hardware virtualization (VT-x / AMD-V)
+      ansible.builtin.shell: grep -qE '(vmx|svm)' /proc/cpuinfo
+      changed_when: false
+      failed_when: false
+      register: virt_check
+
+    - name: Fail if no hardware virtualization
+      ansible.builtin.fail:
+        msg: "CPU does not support VT-x/AMD-V. Enable it in BIOS."
+      when: virt_check.rc != 0
+
+    - name: Load KVM kernel module
+      community.general.modprobe:
+        name: "{{ item }}"
+        state: present
+      loop:
+        - kvm_intel
+        - kvm_amd
+      failed_when: false
+
+    - name: Verify /dev/kvm exists
+      ansible.builtin.stat:
+        path: /dev/kvm
+      register: kvm_dev
+
+    - name: Fail if /dev/kvm unavailable
+      ansible.builtin.fail:
+        msg: "/dev/kvm not available. Enable VT-x in BIOS and ensure KVM module is loaded."
+      when: not kvm_dev.stat.exists
+
+    - name: Check available memory
+      ansible.builtin.assert:
+        that: ansible_memtotal_mb >= 7500
+        fail_msg: "At least 8 GB RAM required. Detected: {{ (ansible_memtotal_mb / 1024) | round(1) }} GB."
+
+  tasks:
+    # ─── System dependencies ───────────────────────────────────────
+    - name: Install dependencies (Debian/Ubuntu)
+      when: ansible_os_family == "Debian"
+      ansible.builtin.apt:
+        name:
+          - curl
+          - qemu-utils
+          - qemu-system-x86
+          - libvirt-daemon-system
+          - virtinst
+          - bridge-utils
+        state: present
+        update_cache: true
+
+    - name: Install dependencies (Fedora)
+      when: ansible_os_family == "RedHat" and not is_ostree
+      ansible.builtin.dnf:
+        name:
+          - curl
+          - qemu-kvm
+          - libvirt
+          - virt-install
+          - bridge-utils
+        state: present
+
+    - name: Install dependencies (Bazzite / Fedora Atomic)
+      when: is_ostree
+      block:
+        - name: Check which virt packages are missing
+          ansible.builtin.shell: |
+            missing=""
+            command -v curl     >/dev/null 2>&1 || missing="$missing curl"
+            command -v qemu-img >/dev/null 2>&1 || missing="$missing qemu-img"
+            command -v virsh    >/dev/null 2>&1 || missing="$missing libvirt qemu-kvm"
+            echo "$missing"
+          register: ostree_missing
+          changed_when: false
+
+        - name: Layer missing packages with rpm-ostree
+          ansible.builtin.command:
+            cmd: "rpm-ostree install --idempotent --allow-inactive {{ ostree_missing.stdout }}"
+          when: ostree_missing.stdout | trim | length > 0
+          register: rpm_ostree_result
+
+        - name: Check if reboot is needed (staged packages)
+          ansible.builtin.shell: rpm-ostree status | grep -q Staged
+          register: ostree_staged
+          changed_when: false
+          failed_when: false
+
+        - name: Notify if reboot required
+          ansible.builtin.fail:
+            msg: |
+              Packages have been staged by rpm-ostree. Reboot and re-run:
+                sudo reboot
+                sudo ./setup.sh
+          when:
+            - rpm_ostree_result is changed
+            - ostree_staged.rc == 0
+
+    - name: Enable libvirtd
+      ansible.builtin.systemd:
+        name: libvirtd
+        state: started
+        enabled: true
+      failed_when: false
+
+    # ─── SELinux ───────────────────────────────────────────────────
+    - name: Configure SELinux booleans
+      when: ansible_selinux.status == "enabled"
+      ansible.posix.seboolean:
+        name: "{{ item }}"
+        state: true
+        persistent: true
+      loop:
+        - container_use_cephfs
+        - virt_sandbox_use_all_caps
+        - virt_use_nfs
+      failed_when: false
+
+    - name: Set SELinux context for k3s data directory
+      when: ansible_selinux.status == "enabled"
+      ansible.builtin.command:
+        cmd: semanage fcontext -a -t container_var_lib_t '/var/lib/rancher/k3s(/.*)?'
+      register: semanage_result
+      changed_when: semanage_result.rc == 0
+      failed_when: false
+
+    # ─── k3s ───────────────────────────────────────────────────────
+    - name: Check if k3s is already installed
+      ansible.builtin.command: kubectl get nodes
+      environment:
+        KUBECONFIG: "{{ k3s_kubeconfig }}"
+      register: k3s_check
+      changed_when: false
+      failed_when: false
+
+    - name: Install k3s
+      when: k3s_check.rc != 0
+      block:
+        - name: Install k3s-selinux policy (Fedora / OSTree)
+          when: ansible_selinux.status == "enabled" and ansible_os_family == "RedHat"
+          ansible.builtin.shell: |
+            if command -v rpm-ostree >/dev/null 2>&1; then
+              rpm-ostree install --idempotent --allow-inactive k3s-selinux 2>/dev/null || true
+            elif command -v dnf >/dev/null 2>&1; then
+              dnf install -y -q k3s-selinux 2>/dev/null || true
+            fi
+          changed_when: false
+
+        - name: Run k3s installer (SELinux mode)
+          ansible.builtin.shell: >
+            curl -sfL https://get.k3s.io |
+            INSTALL_K3S_SELINUX_WARN=true sh -s - --selinux
+          when: ansible_selinux.status == "enabled"
+
+        - name: Run k3s installer (standard)
+          ansible.builtin.shell: curl -sfL https://get.k3s.io | sh -
+          when: ansible_selinux.status != "enabled"
+
+        - name: Make kubeconfig world-readable
+          ansible.builtin.file:
+            path: "{{ k3s_kubeconfig }}"
+            mode: "0644"
+
+        - name: Wait for k3s node to become Ready
+          ansible.builtin.shell: kubectl get nodes | grep -q " Ready"
+          environment:
+            KUBECONFIG: "{{ k3s_kubeconfig }}"
+          retries: 40
+          delay: 5
+          register: k3s_ready
+          until: k3s_ready.rc == 0
+
+    - name: Copy kubeconfig to user home
+      block:
+        - name: Create .kube directory
+          ansible.builtin.file:
+            path: "{{ deploy_home }}/.kube"
+            state: directory
+            owner: "{{ deploy_user }}"
+            mode: "0755"
+
+        - name: Copy kubeconfig
+          ansible.builtin.copy:
+            src: "{{ k3s_kubeconfig }}"
+            dest: "{{ deploy_home }}/.kube/config"
+            owner: "{{ deploy_user }}"
+            mode: "0600"
+            remote_src: true
+
+    # ─── KubeVirt ──────────────────────────────────────────────────
+    - name: Get latest KubeVirt version
+      ansible.builtin.uri:
+        url: "{{ kubevirt_stable_url }}"
+        return_content: true
+      register: kubevirt_version_response
+
+    - name: Set KubeVirt version fact
+      ansible.builtin.set_fact:
+        kubevirt_version: "{{ kubevirt_version_response.content | trim }}"
+
+    - name: Check if KubeVirt namespace exists
+      ansible.builtin.command: kubectl get namespace kubevirt
+      environment:
+        KUBECONFIG: "{{ k3s_kubeconfig }}"
+      register: kv_ns
+      changed_when: false
+      failed_when: false
+
+    - name: Deploy KubeVirt operator
+      when: kv_ns.rc != 0
+      ansible.builtin.command: >
+        kubectl create -f
+        https://github.com/kubevirt/kubevirt/releases/download/{{ kubevirt_version }}/kubevirt-operator.yaml
+      environment:
+        KUBECONFIG: "{{ k3s_kubeconfig }}"
+
+    - name: Check if KubeVirt CR exists
+      ansible.builtin.command: kubectl get kubevirt kubevirt -n kubevirt
+      environment:
+        KUBECONFIG: "{{ k3s_kubeconfig }}"
+      register: kv_cr
+      changed_when: false
+      failed_when: false
+
+    - name: Deploy KubeVirt CR
+      when: kv_cr.rc != 0
+      ansible.builtin.command: >
+        kubectl create -f
+        https://github.com/kubevirt/kubevirt/releases/download/{{ kubevirt_version }}/kubevirt-cr.yaml
+      environment:
+        KUBECONFIG: "{{ k3s_kubeconfig }}"
+
+    - name: Wait for KubeVirt to become available
+      ansible.builtin.command: >
+        kubectl -n kubevirt wait kv kubevirt
+        --for condition=Available --timeout=600s
+      environment:
+        KUBECONFIG: "{{ k3s_kubeconfig }}"
+      changed_when: false
+
+    # ─── CDI ───────────────────────────────────────────────────────
+    - name: Get latest CDI version
+      ansible.builtin.uri:
+        url: "{{ cdi_releases_url }}"
+        return_content: true
+      register: cdi_release_response
+
+    - name: Set CDI version fact
+      ansible.builtin.set_fact:
+        cdi_version: "{{ cdi_release_response.json.tag_name }}"
+
+    - name: Check if CDI namespace exists
+      ansible.builtin.command: kubectl get namespace cdi
+      environment:
+        KUBECONFIG: "{{ k3s_kubeconfig }}"
+      register: cdi_ns
+      changed_when: false
+      failed_when: false
+
+    - name: Deploy CDI operator and CR
+      when: cdi_ns.rc != 0
+      ansible.builtin.shell: |
+        kubectl create -f "https://github.com/kubevirt/containerized-data-importer/releases/download/{{ cdi_version }}/cdi-operator.yaml"
+        kubectl create -f "https://github.com/kubevirt/containerized-data-importer/releases/download/{{ cdi_version }}/cdi-cr.yaml"
+      environment:
+        KUBECONFIG: "{{ k3s_kubeconfig }}"
+
+    - name: Wait for CDI to become available
+      ansible.builtin.command: >
+        kubectl wait cdi cdi --for condition=Available --timeout=300s
+      environment:
+        KUBECONFIG: "{{ k3s_kubeconfig }}"
+      changed_when: false
+
+    # ─── virtctl ───────────────────────────────────────────────────
+    - name: Set virtctl architecture
+      ansible.builtin.set_fact:
+        virtctl_arch: "{{ 'amd64' if ansible_architecture == 'x86_64' else 'arm64' }}"
+
+    - name: Install virtctl
+      ansible.builtin.get_url:
+        url: "https://github.com/kubevirt/kubevirt/releases/download/{{ kubevirt_version }}/virtctl-{{ kubevirt_version }}-linux-{{ virtctl_arch }}"
+        dest: /usr/local/bin/virtctl
+        mode: "0755"
+
+    # ─── Deploy VM manifests ───────────────────────────────────────
+    - name: Copy VM manifests to user home
+      ansible.builtin.copy:
+        src: "{{ item }}"
+        dest: "{{ deploy_home }}/{{ item | basename }}"
+        owner: "{{ deploy_user }}"
+        mode: "0644"
+      loop:
+        - "{{ manifests_dir }}/windows-vm.yaml"
+        - "{{ manifests_dir }}/linux-demo-vm.yaml"
+
+    # ─── Verify with demo VM ──────────────────────────────────────
+    - name: Deploy and verify demo VM
+      when: deploy_demo_vm
+      block:
+        - name: Apply linux-demo VM manifest
+          ansible.builtin.command: kubectl apply -f {{ manifests_dir }}/linux-demo-vm.yaml
+          environment:
+            KUBECONFIG: "{{ k3s_kubeconfig }}"
+
+        - name: Start demo VM
+          ansible.builtin.command: virtctl start linux-demo
+          environment:
+            KUBECONFIG: "{{ k3s_kubeconfig }}"
+          failed_when: false
+
+        - name: Wait for demo VM to reach Running state
+          ansible.builtin.shell: >
+            kubectl get vmi linux-demo -o jsonpath='{.status.phase}' 2>/dev/null
+          environment:
+            KUBECONFIG: "{{ k3s_kubeconfig }}"
+          register: demo_vm_phase
+          retries: 30
+          delay: 10
+          until: demo_vm_phase.stdout == "Running"
+          failed_when: false
+
+        - name: Report demo VM status
+          ansible.builtin.debug:
+            msg: "Demo VM status: {{ demo_vm_phase.stdout | default('not started') }}"
+
+    # ─── Summary ──────────────────────────────────────────────────
+    - name: Print summary
+      ansible.builtin.debug:
+        msg: |
+          ═══════════════════════════════════════════════════
+           DATACENTER SETUP COMPLETE
+          ═══════════════════════════════════════════════════
+
+           k3s:       installed
+           KubeVirt:  {{ kubevirt_version }}
+           CDI:       {{ cdi_version }}
+           virtctl:   /usr/local/bin/virtctl
+           Distro:    {{ ansible_distribution }} {{ ansible_distribution_version }}
+           RAM:       {{ (ansible_memtotal_mb / 1024) | round(1) }} GB
+
+           Manifests:
+             {{ deploy_home }}/linux-demo-vm.yaml
+             {{ deploy_home }}/windows-vm.yaml
+
+           Next steps for Windows VM:
+             1. Download ISO: https://www.microsoft.com/en-us/evalcenter/evaluate-windows-11-enterprise
+             2. Upload:  virtctl image-upload dv windows-iso --size=6Gi --image-path=/path/to/Win11.iso --insecure
+             3. Deploy:  kubectl apply -f ~/windows-vm.yaml && virtctl start windows-vm
+             4. Console: virtctl vnc windows-vm

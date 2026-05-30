@@ -1,0 +1,93 @@
+# Windows VM for KubeVirt on x86_64 bare-metal
+# Quick start after importing the ISO:
+#   kubectl apply -f windows-vm.yaml
+#   virtctl start windows-vm
+#   virtctl vnc windows-vm
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: windows-os-disk
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 60Gi
+---
+apiVersion: kubevirt.io/v1
+kind: VirtualMachine
+metadata:
+  name: windows-vm
+  labels:
+    app: windows-vm
+spec:
+  runStrategy: Manual
+  template:
+    metadata:
+      labels:
+        kubevirt.io/vm: windows-vm
+        os.template.kubevirt.io/win11: "true"
+    spec:
+      domain:
+        cpu:
+          cores: 4
+          threads: 2
+          model: host-passthrough
+        resources:
+          requests:
+            memory: 8Gi
+        features:
+          acpi: {}
+          hyperv:
+            relaxed: {}
+            vapic: {}
+            spinlocks:
+              spinlocks: 8191
+            synic: {}
+            stimer:
+              direct: {}
+            reset: {}
+            vpindex: {}
+            frequencies: {}
+            reenlightenment: {}
+            tlbflush: {}
+            ipi: {}
+        clock:
+          utc: {}
+          timer:
+            hpet:
+              present: false
+            pit:
+              tickPolicy: delay
+            rtc:
+              tickPolicy: catchup
+            hyperv: {}
+        firmware:
+          bootloader:
+            efi:
+              secureBoot: true
+        machine:
+          type: q35
+        devices:
+          disks:
+            - name: osdisk
+              disk:
+                bus: virtio
+              bootOrder: 1
+          inputs:
+            - name: tablet
+              type: tablet
+              bus: usb
+          interfaces:
+            - name: default
+              masquerade: {}
+              model: virtio
+          tpm: {}
+      networks:
+        - name: default
+          pod: {}
+      volumes:
+        - name: osdisk
+          persistentVolumeClaim:
+            claimName: windows-os-disk

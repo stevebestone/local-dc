@@ -27,5 +27,8 @@ kubeconfig
 # Lima VM state
 .lima/
 
+# Ansible
+*.retry
+
 # Logs
 *.log
