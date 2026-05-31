@@ -209,7 +209,7 @@
       when: argocd_ns.rc != 0
       block:
         - name: Apply ArgoCD manifests
-          ansible.builtin.shell: kubectl kustomize "{{ gitops_dir }}/argocd" | kubectl apply -f -
+          ansible.builtin.shell: kubectl kustomize "{{ gitops_dir }}/argocd" | kubectl apply --server-side -f -
           environment:
             KUBECONFIG: "{{ k3s_kubeconfig }}"
 

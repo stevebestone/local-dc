@@ -1,0 +1,48 @@
+# Provisioned by: engineer-1 via Backstage self-service
+# Template: Linux Development VM
+# CPU: 2 cores, RAM: 2Gi, Disk: 20Gi
+---
+apiVersion: kubevirt.io/v1
+kind: VirtualMachine
+metadata:
+  name: dev-vm-engineer1
+  labels:
+    app: dev-vm-engineer1
+    owner: engineer-1
+    managed-by: backstage
+spec:
+  runStrategy: Always
+  template:
+    metadata:
+      labels:
+        kubevirt.io/vm: dev-vm-engineer1
+        owner: engineer-1
+    spec:
+      domain:
+        cpu:
+          cores: 2
+          model: host-passthrough
+        resources:
+          requests:
+            memory: 2Gi
+        devices:
+          disks:
+            - name: containerdisk
+              disk:
+                bus: virtio
+            - name: emptydisk
+              disk:
+                bus: virtio
+          interfaces:
+            - name: default
+              masquerade: {}
+      networks:
+        - name: default
+          pod: {}
+      volumes:
+        - name: containerdisk
+          containerDisk:
+            image: quay.io/kubevirt/cirros-container-disk-demo:latest
+        - name: emptydisk
+          emptyDisk:
+            capacity: 20Gi

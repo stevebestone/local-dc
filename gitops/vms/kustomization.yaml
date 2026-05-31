@@ -3,3 +3,4 @@ kind: Kustomization
 resources:
   - linux-demo-vm.yaml
   - windows-vm.yaml
+  - dev-vm-engineer1.yaml
