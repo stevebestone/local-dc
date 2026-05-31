@@ -23,7 +23,9 @@ Engineers self-provision development VMs through the Backstage Developer Portal.
 │                                                         │
 │  Git repo ──→ ArgoCD ──→ All cluster resources          │
 │  Engineer  ──→ Backstage ──→ VM provisioning            │
-│  Auth      ──→ Keycloak OIDC ──→ Backstage + ArgoCD    │
+│  Auth      ──→ Keycloak OIDC ──→ All applications      │
+│  Metrics   ──→ Prometheus ──→ Grafana dashboards        │
+│  Images    ──→ Harbor container registry                 │
 └─────────────────────────────────────────────────────────┘
 ```
 
@@ -38,6 +40,9 @@ Engineers self-provision development VMs through the Backstage Developer Portal.
 | KubeVirt Manager | latest | `platform` | Web UI for VM operations |
 | Backstage | 1.51 (custom) | `platform` | Internal Developer Portal |
 | Keycloak | 26.0 | `keycloak` | Identity & Access Management |
+| Prometheus | latest | `monitoring` | Metrics collection (7-day retention) |
+| Grafana | latest | `monitoring` | Monitoring dashboards |
+| Harbor | latest | `harbor` | Container/artifact registry |
 
 ## Web UIs
 
@@ -46,6 +51,8 @@ Engineers self-provision development VMs through the Backstage Developer Portal.
 | **Backstage** (Developer Portal) | `http://<node-ip>:30081` | Keycloak OIDC / Guest |
 | **ArgoCD** (GitOps Dashboard) | `http://<node-ip>:30082` | Keycloak OIDC |
 | **Keycloak** (IAM Admin) | `http://<node-ip>:30083` | admin / admin |
+| **Grafana** (Monitoring) | `http://<node-ip>:30084` | admin / (see secret) |
+| **Harbor** (Container Registry) | `http://<node-ip>:30085` | Keycloak OIDC |
 | **KubeVirt Manager** (VM Dashboard) | `http://<node-ip>:30080` | No auth |
 
 ## Quick Start
@@ -121,18 +128,47 @@ rm /tmp/backstage.tar
 2. Login: `admin` / `admin`
 3. Select realm: `local-dc`
 
+### Harbor
+
+1. Open `http://<node-ip>:30085`
+2. Click **"LOGIN VIA OIDC PROVIDER"**
+3. Keycloak login page → enter credentials
+4. Users in `admins` group get Harbor admin access
+
+### Grafana
+
+1. Open `http://<node-ip>:30084`
+2. Username: `admin`, password:
+   ```bash
+   kubectl -n monitoring get secret monitoring-grafana \
+     -o jsonpath='{.data.admin-password}' | base64 -d && echo
+   ```
+
 ### Users (Keycloak realm: local-dc)
 
-| Username | Default Password | Group | Role | Backstage | ArgoCD |
-|----------|-----------------|-------|------|-----------|--------|
-| steve | admin | admins | admin | Full access | Admin |
-| engineer1 | changeme | engineers | developer | Templates + Catalog | Read-only |
-| engineer2 | changeme | engineers | developer | Templates + Catalog | Read-only |
-| engineer3 | changeme | engineers | developer | Templates + Catalog | Read-only |
-| engineer4 | changeme | engineers | developer | Templates + Catalog | Read-only |
-| engineer5 | changeme | engineers | developer | Templates + Catalog | Read-only |
+| Username | Group | Role | Access |
+|----------|-------|------|--------|
+| platform-admin | platform-admins, admins | admin, platform-admin | All applications (SSO) |
+| steve | admins | admin | All applications |
+| engineer1-5 | engineers | developer | Backstage + ArgoCD (read-only) |
 
-All passwords are temporary — users must change them on first login.
+The `platform-admin` account is the unified service account for OIDC integration across all applications (Backstage, ArgoCD, Grafana, Harbor).
+
+Passwords are set via `secrets/create-secrets.sh` (never in Git).
+
+### Credential Management
+
+All secrets are stored as Kubernetes Secrets, never in Git:
+
+```bash
+# Bootstrap all secrets (local only, gitignored)
+sudo ./secrets/create-secrets.sh
+
+# With custom passwords
+PLATFORM_ADMIN_PASSWORD=... KC_ADMIN_PASSWORD=... sudo -E ./secrets/create-secrets.sh
+```
+
+A pre-commit hook (`.githooks/pre-commit`) blocks commits containing hardcoded credentials.
 
 ## VM Provisioning
 
