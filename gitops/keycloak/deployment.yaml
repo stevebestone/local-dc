@@ -12,6 +12,8 @@ spec:
     metadata:
       labels:
         app: keycloak
+      annotations:
+        config-hash: "v2-platform-admin"
     spec:
       containers:
         - name: keycloak
