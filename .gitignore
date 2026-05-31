@@ -30,5 +30,13 @@ kubeconfig
 # Ansible
 *.retry
 
+# Node / Backstage build
+node_modules/
+dist/
+dist-types/
+
+# Podman
+*.tar
+
 # Logs
 *.log

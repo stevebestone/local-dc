@@ -1,0 +1,46 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backstage
+  namespace: backstage
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: backstage
+  template:
+    metadata:
+      labels:
+        app: backstage
+    spec:
+      serviceAccountName: backstage
+      containers:
+        - name: backstage
+          image: ghcr.io/backstage/backstage:latest
+          ports:
+            - containerPort: 7007
+          env:
+            - name: APP_CONFIG_app_baseUrl
+              value: "http://localhost:3000"
+            - name: APP_CONFIG_backend_baseUrl
+              value: "http://localhost:7007"
+          volumeMounts:
+            - name: app-config
+              mountPath: /app/app-config.production.yaml
+              subPath: app-config.yaml
+            - name: templates
+              mountPath: /app/templates
+          resources:
+            requests:
+              memory: 512Mi
+              cpu: 250m
+            limits:
+              memory: 1Gi
+              cpu: 1000m
+      volumes:
+        - name: app-config
+          configMap:
+            name: backstage-app-config
+        - name: templates
+          configMap:
+            name: backstage-templates

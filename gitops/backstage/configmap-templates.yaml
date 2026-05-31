@@ -1,0 +1,419 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backstage-templates
+  namespace: backstage
+data:
+  linux-dev-vm.yaml: |
+    apiVersion: scaffolder.backstage.io/v1beta3
+    kind: Template
+    metadata:
+      name: linux-dev-vm
+      title: Linux Development VM
+      description: Provision a Linux development VM on KubeVirt
+      tags:
+        - vm
+        - linux
+        - kubevirt
+    spec:
+      owner: platform-team
+      type: vm
+      parameters:
+        - title: VM Configuration
+          required:
+            - vmName
+            - owner
+          properties:
+            vmName:
+              title: VM Name
+              type: string
+              pattern: '^[a-z0-9-]+$'
+              description: Lowercase alphanumeric and hyphens only
+            owner:
+              title: Owner
+              type: string
+              description: Engineer name or team
+              enum:
+                - engineer-1
+                - engineer-2
+                - engineer-3
+                - engineer-4
+                - engineer-5
+            cpuCores:
+              title: CPU Cores
+              type: integer
+              default: 2
+              enum: [1, 2, 4]
+            memory:
+              title: Memory
+              type: string
+              default: 2Gi
+              enum: ['512Mi', '1Gi', '2Gi', '4Gi', '8Gi']
+            diskSize:
+              title: Disk Size
+              type: string
+              default: 20Gi
+              enum: ['10Gi', '20Gi', '40Gi', '80Gi', '100Gi']
+      steps:
+        - id: create-manifest
+          name: Generate VM Manifest
+          action: fetch:template
+          input:
+            url: ./skeleton
+            targetPath: ./output
+            values:
+              vmName: ${{ parameters.vmName }}
+              owner: ${{ parameters.owner }}
+              cpuCores: ${{ parameters.cpuCores }}
+              memory: ${{ parameters.memory }}
+              diskSize: ${{ parameters.diskSize }}
+              osImage: quay.io/kubevirt/cirros-container-disk-demo:latest
+        - id: apply-manifest
+          name: Apply VM to Cluster
+          action: kubernetes:apply
+          input:
+            namespaced: true
+            manifest: |
+              apiVersion: kubevirt.io/v1
+              kind: VirtualMachine
+              metadata:
+                name: ${{ parameters.vmName }}
+                labels:
+                  app: ${{ parameters.vmName }}
+                  owner: ${{ parameters.owner }}
+                  managed-by: backstage
+              spec:
+                runStrategy: Manual
+                template:
+                  metadata:
+                    labels:
+                      kubevirt.io/vm: ${{ parameters.vmName }}
+                      owner: ${{ parameters.owner }}
+                  spec:
+                    domain:
+                      cpu:
+                        cores: ${{ parameters.cpuCores }}
+                        model: host-passthrough
+                      resources:
+                        requests:
+                          memory: ${{ parameters.memory }}
+                      devices:
+                        disks:
+                          - name: containerdisk
+                            disk:
+                              bus: virtio
+                          - name: emptydisk
+                            disk:
+                              bus: virtio
+                        interfaces:
+                          - name: default
+                            masquerade: {}
+                    networks:
+                      - name: default
+                        pod: {}
+                    volumes:
+                      - name: containerdisk
+                        containerDisk:
+                          image: quay.io/kubevirt/cirros-container-disk-demo:latest
+                      - name: emptydisk
+                        emptyDisk:
+                          capacity: ${{ parameters.diskSize }}
+      output:
+        links:
+          - title: VM Created
+            icon: catalog
+            entityRef: ${{ parameters.vmName }}
+
+  windows-dev-vm.yaml: |
+    apiVersion: scaffolder.backstage.io/v1beta3
+    kind: Template
+    metadata:
+      name: windows-dev-vm
+      title: Windows Development VM
+      description: Provision a Windows development VM on KubeVirt
+      tags:
+        - vm
+        - windows
+        - kubevirt
+    spec:
+      owner: platform-team
+      type: vm
+      parameters:
+        - title: VM Configuration
+          required:
+            - vmName
+            - owner
+          properties:
+            vmName:
+              title: VM Name
+              type: string
+              pattern: '^[a-z0-9-]+$'
+              description: Lowercase alphanumeric and hyphens only
+            owner:
+              title: Owner
+              type: string
+              description: Engineer name or team
+              enum:
+                - engineer-1
+                - engineer-2
+                - engineer-3
+                - engineer-4
+                - engineer-5
+            cpuCores:
+              title: CPU Cores
+              type: integer
+              default: 4
+              enum: [2, 4, 8]
+            memory:
+              title: Memory
+              type: string
+              default: 8Gi
+              enum: ['4Gi', '8Gi', '16Gi']
+            diskSize:
+              title: Disk Size
+              type: string
+              default: 60Gi
+              enum: ['40Gi', '60Gi', '100Gi', '200Gi']
+      steps:
+        - id: apply-pvc
+          name: Create OS Disk
+          action: kubernetes:apply
+          input:
+            namespaced: true
+            manifest: |
+              apiVersion: v1
+              kind: PersistentVolumeClaim
+              metadata:
+                name: ${{ parameters.vmName }}-os-disk
+                labels:
+                  owner: ${{ parameters.owner }}
+                  managed-by: backstage
+              spec:
+                accessModes:
+                  - ReadWriteOnce
+                resources:
+                  requests:
+                    storage: ${{ parameters.diskSize }}
+        - id: apply-vm
+          name: Create Windows VM
+          action: kubernetes:apply
+          input:
+            namespaced: true
+            manifest: |
+              apiVersion: kubevirt.io/v1
+              kind: VirtualMachine
+              metadata:
+                name: ${{ parameters.vmName }}
+                labels:
+                  app: ${{ parameters.vmName }}
+                  owner: ${{ parameters.owner }}
+                  managed-by: backstage
+                  os.template.kubevirt.io/win11: "true"
+              spec:
+                runStrategy: Manual
+                template:
+                  metadata:
+                    labels:
+                      kubevirt.io/vm: ${{ parameters.vmName }}
+                      owner: ${{ parameters.owner }}
+                  spec:
+                    domain:
+                      cpu:
+                        cores: ${{ parameters.cpuCores }}
+                        threads: 2
+                        model: host-passthrough
+                      resources:
+                        requests:
+                          memory: ${{ parameters.memory }}
+                      features:
+                        acpi: {}
+                        hyperv:
+                          relaxed: {}
+                          vapic: {}
+                          spinlocks:
+                            spinlocks: 8191
+                          synic: {}
+                          reset: {}
+                          vpindex: {}
+                          frequencies: {}
+                          reenlightenment: {}
+                          tlbflush: {}
+                          ipi: {}
+                      clock:
+                        utc: {}
+                        timer:
+                          hpet:
+                            present: false
+                          pit:
+                            tickPolicy: delay
+                          rtc:
+                            tickPolicy: catchup
+                          hyperv: {}
+                      firmware:
+                        bootloader:
+                          efi:
+                            secureBoot: false
+                      machine:
+                        type: q35
+                      devices:
+                        disks:
+                          - name: osdisk
+                            disk:
+                              bus: virtio
+                            bootOrder: 1
+                        inputs:
+                          - name: tablet
+                            type: tablet
+                            bus: usb
+                        interfaces:
+                          - name: default
+                            masquerade: {}
+                            model: virtio
+                        tpm: {}
+                    networks:
+                      - name: default
+                        pod: {}
+                    volumes:
+                      - name: osdisk
+                        persistentVolumeClaim:
+                          claimName: ${{ parameters.vmName }}-os-disk
+      output:
+        links:
+          - title: VM Created
+            icon: catalog
+            entityRef: ${{ parameters.vmName }}
+
+  custom-vm.yaml: |
+    apiVersion: scaffolder.backstage.io/v1beta3
+    kind: Template
+    metadata:
+      name: custom-vm
+      title: Custom VM
+      description: Provision a fully customizable VM on KubeVirt
+      tags:
+        - vm
+        - custom
+        - kubevirt
+    spec:
+      owner: platform-team
+      type: vm
+      parameters:
+        - title: VM Configuration
+          required:
+            - vmName
+            - owner
+            - osType
+          properties:
+            vmName:
+              title: VM Name
+              type: string
+              pattern: '^[a-z0-9-]+$'
+            owner:
+              title: Owner
+              type: string
+              enum:
+                - engineer-1
+                - engineer-2
+                - engineer-3
+                - engineer-4
+                - engineer-5
+            osType:
+              title: OS Type
+              type: string
+              enum:
+                - linux
+                - windows
+            cpuCores:
+              title: CPU Cores
+              type: integer
+              default: 2
+              enum: [1, 2, 4, 8]
+            memory:
+              title: Memory
+              type: string
+              default: 4Gi
+              enum: ['512Mi', '1Gi', '2Gi', '4Gi', '8Gi', '16Gi']
+            diskSize:
+              title: Disk Size
+              type: string
+              default: 40Gi
+              enum: ['10Gi', '20Gi', '40Gi', '60Gi', '80Gi', '100Gi', '200Gi']
+      steps:
+        - id: apply-pvc
+          name: Create OS Disk
+          action: kubernetes:apply
+          input:
+            namespaced: true
+            manifest: |
+              apiVersion: v1
+              kind: PersistentVolumeClaim
+              metadata:
+                name: ${{ parameters.vmName }}-os-disk
+                labels:
+                  owner: ${{ parameters.owner }}
+                  managed-by: backstage
+              spec:
+                accessModes:
+                  - ReadWriteOnce
+                resources:
+                  requests:
+                    storage: ${{ parameters.diskSize }}
+        - id: apply-vm
+          name: Create VM
+          action: kubernetes:apply
+          input:
+            namespaced: true
+            manifest: |
+              apiVersion: kubevirt.io/v1
+              kind: VirtualMachine
+              metadata:
+                name: ${{ parameters.vmName }}
+                labels:
+                  app: ${{ parameters.vmName }}
+                  owner: ${{ parameters.owner }}
+                  os-type: ${{ parameters.osType }}
+                  managed-by: backstage
+              spec:
+                runStrategy: Manual
+                template:
+                  metadata:
+                    labels:
+                      kubevirt.io/vm: ${{ parameters.vmName }}
+                      owner: ${{ parameters.owner }}
+                  spec:
+                    domain:
+                      cpu:
+                        cores: ${{ parameters.cpuCores }}
+                        model: host-passthrough
+                      resources:
+                        requests:
+                          memory: ${{ parameters.memory }}
+                      features:
+                        acpi: {}
+                      firmware:
+                        bootloader:
+                          efi:
+                            secureBoot: false
+                      machine:
+                        type: q35
+                      devices:
+                        disks:
+                          - name: osdisk
+                            disk:
+                              bus: virtio
+                            bootOrder: 1
+                        interfaces:
+                          - name: default
+                            masquerade: {}
+                    networks:
+                      - name: default
+                        pod: {}
+                    volumes:
+                      - name: osdisk
+                        persistentVolumeClaim:
+                          claimName: ${{ parameters.vmName }}-os-disk
+      output:
+        links:
+          - title: VM Created
+            icon: catalog
+            entityRef: ${{ parameters.vmName }}
