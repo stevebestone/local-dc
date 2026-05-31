@@ -18,11 +18,15 @@ kubeconfig
 *.img
 *.qcow2
 
-# Secrets and credentials
+# Secrets and credentials — NEVER commit these
+secrets/
 *.pem
 *.key
 *.crt
 *.env
+*.secret
+*-secret.yaml
+kubeconfig
 
 # Lima VM state
 .lima/

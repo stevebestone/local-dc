@@ -38,7 +38,7 @@ data:
           development:
             metadataUrl: http://keycloak.keycloak.svc.cluster.local:8080/realms/local-dc/.well-known/openid-configuration
             clientId: backstage
-            clientSecret: backstage-secret
+            clientSecret: ${BACKSTAGE_OIDC_SECRET}
             prompt: auto
             signIn:
               resolvers:

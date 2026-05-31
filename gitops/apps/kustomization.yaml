@@ -6,4 +6,6 @@ resources:
   - kubevirt-manager.yaml
   - vms.yaml
   - keycloak.yaml
+  - monitoring.yaml
+  - harbor.yaml
   - backstage.yaml

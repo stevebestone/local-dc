@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+#
+# Pre-commit hook: blocks commits containing hardcoded secrets.
+# Install: git config core.hooksPath .githooks
+#
+set -euo pipefail
+
+echo "Checking for secrets in staged files..."
+
+PATTERNS=(
+    'password.*=.*[a-zA-Z0-9]'
+    'clientSecret:.*[a-zA-Z0-9-]{8,}'
+    'ADMIN_PASSWORD.*:.*[a-zA-Z0-9]'
+    'token:.*[a-zA-Z0-9]{20,}'
+    'BEGIN.*PRIVATE KEY'
+    'secret:.*[a-zA-Z0-9-]{8,}'
+)
+
+FOUND=0
+for pattern in "${PATTERNS[@]}"; do
+    MATCHES=$(git diff --cached --diff-filter=ACM -U0 -- '*.yaml' '*.yml' '*.json' '*.ts' | \
+        grep -iE "^\+.*${pattern}" | \
+        grep -vi '\${\|secretRef\|secretKeyRef\|existingSecret\|optional\|env\.\|change-me\|REPLACE\|TODO' || true)
+    if [[ -n "$MATCHES" ]]; then
+        echo "❌ Potential secret found matching pattern: ${pattern}"
+        echo "$MATCHES"
+        FOUND=1
+    fi
+done
+
+if [[ $FOUND -eq 1 ]]; then
+    echo ""
+    echo "❌ Commit blocked — hardcoded secrets detected."
+    echo "   Move secrets to K8s Secrets (see secrets/create-secrets.sh)"
+    echo "   Use \$\{ENV_VAR\} references in config files."
+    echo ""
+    echo "   To bypass (emergency only): git commit --no-verify"
+    exit 1
+fi
+
+echo "✅ No secrets detected."

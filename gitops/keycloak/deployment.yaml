@@ -20,13 +20,13 @@ spec:
             - start-dev
             - --import-realm
             - --health-enabled=true
+          envFrom:
+            - secretRef:
+                name: keycloak-admin
+                optional: true
           env:
             - name: KC_DB
               value: dev-mem
-            - name: KEYCLOAK_ADMIN
-              value: admin
-            - name: KEYCLOAK_ADMIN_PASSWORD
-              value: admin
             - name: KC_PROXY_HEADERS
               value: xforwarded
             - name: KC_HTTP_RELATIVE_PATH

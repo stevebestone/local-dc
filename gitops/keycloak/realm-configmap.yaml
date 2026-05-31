@@ -17,13 +17,29 @@ data:
       "bruteForceProtected": true,
       "roles": {
         "realm": [
-          { "name": "admin", "description": "Platform administrator" },
-          { "name": "developer", "description": "Developer role" }
+          {
+            "name": "admin",
+            "description": "Platform administrator"
+          },
+          {
+            "name": "developer",
+            "description": "Developer role"
+          }
         ]
       },
       "groups": [
-        { "name": "admins", "realmRoles": ["admin"] },
-        { "name": "engineers", "realmRoles": ["developer"] }
+        {
+          "name": "admins",
+          "realmRoles": [
+            "admin"
+          ]
+        },
+        {
+          "name": "engineers",
+          "realmRoles": [
+            "developer"
+          ]
+        }
       ],
       "users": [
         {
@@ -32,9 +48,19 @@ data:
           "firstName": "Steve",
           "lastName": "Bechstein",
           "enabled": true,
-          "credentials": [{ "type": "password", "value": "admin", "temporary": true }],
-          "groups": ["admins"],
-          "realmRoles": ["admin"]
+          "credentials": [
+            {
+              "type": "password",
+              "value": "${env.DEFAULT_USER_PASSWORD:changeme}",
+              "temporary": true
+            }
+          ],
+          "groups": [
+            "admins"
+          ],
+          "realmRoles": [
+            "admin"
+          ]
         },
         {
           "username": "engineer1",
@@ -42,9 +68,19 @@ data:
           "firstName": "Engineer",
           "lastName": "One",
           "enabled": true,
-          "credentials": [{ "type": "password", "value": "changeme", "temporary": true }],
-          "groups": ["engineers"],
-          "realmRoles": ["developer"]
+          "credentials": [
+            {
+              "type": "password",
+              "value": "${env.DEFAULT_USER_PASSWORD:changeme}",
+              "temporary": true
+            }
+          ],
+          "groups": [
+            "engineers"
+          ],
+          "realmRoles": [
+            "developer"
+          ]
         },
         {
           "username": "engineer2",
@@ -52,9 +88,19 @@ data:
           "firstName": "Engineer",
           "lastName": "Two",
           "enabled": true,
-          "credentials": [{ "type": "password", "value": "changeme", "temporary": true }],
-          "groups": ["engineers"],
-          "realmRoles": ["developer"]
+          "credentials": [
+            {
+              "type": "password",
+              "value": "${env.DEFAULT_USER_PASSWORD:changeme}",
+              "temporary": true
+            }
+          ],
+          "groups": [
+            "engineers"
+          ],
+          "realmRoles": [
+            "developer"
+          ]
         },
         {
           "username": "engineer3",
@@ -62,9 +108,19 @@ data:
           "firstName": "Engineer",
           "lastName": "Three",
           "enabled": true,
-          "credentials": [{ "type": "password", "value": "changeme", "temporary": true }],
-          "groups": ["engineers"],
-          "realmRoles": ["developer"]
+          "credentials": [
+            {
+              "type": "password",
+              "value": "${env.DEFAULT_USER_PASSWORD:changeme}",
+              "temporary": true
+            }
+          ],
+          "groups": [
+            "engineers"
+          ],
+          "realmRoles": [
+            "developer"
+          ]
         },
         {
           "username": "engineer4",
@@ -72,9 +128,19 @@ data:
           "firstName": "Engineer",
           "lastName": "Four",
           "enabled": true,
-          "credentials": [{ "type": "password", "value": "changeme", "temporary": true }],
-          "groups": ["engineers"],
-          "realmRoles": ["developer"]
+          "credentials": [
+            {
+              "type": "password",
+              "value": "${env.DEFAULT_USER_PASSWORD:changeme}",
+              "temporary": true
+            }
+          ],
+          "groups": [
+            "engineers"
+          ],
+          "realmRoles": [
+            "developer"
+          ]
         },
         {
           "username": "engineer5",
@@ -82,9 +148,19 @@ data:
           "firstName": "Engineer",
           "lastName": "Five",
           "enabled": true,
-          "credentials": [{ "type": "password", "value": "changeme", "temporary": true }],
-          "groups": ["engineers"],
-          "realmRoles": ["developer"]
+          "credentials": [
+            {
+              "type": "password",
+              "value": "${env.DEFAULT_USER_PASSWORD:changeme}",
+              "temporary": true
+            }
+          ],
+          "groups": [
+            "engineers"
+          ],
+          "realmRoles": [
+            "developer"
+          ]
         }
       ],
       "clients": [
@@ -93,16 +169,23 @@ data:
           "name": "Backstage IDP",
           "enabled": true,
           "publicClient": false,
-          "secret": "backstage-secret",
+          "secret": "${env.BACKSTAGE_OIDC_SECRET:backstage-secret-change-me}",
           "redirectUris": [
             "http://192.168.1.105:30081/*",
             "http://localhost:30081/*"
           ],
-          "webOrigins": ["*"],
+          "webOrigins": [
+            "*"
+          ],
           "standardFlowEnabled": true,
           "directAccessGrantsEnabled": true,
           "protocol": "openid-connect",
-          "defaultClientScopes": ["openid", "profile", "email", "roles"],
+          "defaultClientScopes": [
+            "openid",
+            "profile",
+            "email",
+            "roles"
+          ],
           "protocolMappers": [
             {
               "name": "groups",
@@ -135,16 +218,22 @@ data:
           "name": "ArgoCD",
           "enabled": true,
           "publicClient": false,
-          "secret": "argocd-secret",
+          "secret": "${env.ARGOCD_OIDC_SECRET:argocd-secret-change-me}",
           "redirectUris": [
             "http://192.168.1.105:30082/*",
             "http://localhost:30082/*"
           ],
-          "webOrigins": ["*"],
+          "webOrigins": [
+            "*"
+          ],
           "standardFlowEnabled": true,
           "directAccessGrantsEnabled": false,
           "protocol": "openid-connect",
-          "defaultClientScopes": ["openid", "profile", "email"],
+          "defaultClientScopes": [
+            "openid",
+            "profile",
+            "email"
+          ],
           "protocolMappers": [
             {
               "name": "groups",

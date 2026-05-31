@@ -9,7 +9,7 @@ data:
     name: Keycloak
     issuer: http://192.168.1.105:30083/realms/local-dc
     clientID: argocd
-    clientSecret: argocd-secret
+    clientSecret: $oidc.keycloak.clientSecret
     requestedScopes:
       - openid
       - profile
