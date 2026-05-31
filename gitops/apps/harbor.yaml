@@ -26,7 +26,6 @@ spec:
         core:
           configureUserSettings: |-
             {
-              "ext_endpoint": "http://192.168.1.105:30085",
               "auth_mode": "oidc_auth",
               "oidc_name": "Keycloak",
               "oidc_endpoint": "http://192.168.1.105:30083/realms/local-dc",
