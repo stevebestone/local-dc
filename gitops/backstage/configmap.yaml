@@ -19,12 +19,15 @@ data:
       csp:
         connect-src: ["'self'", 'http:', 'https:']
       cors:
-        origin: http://localhost:3000
+        origin: '*'
         methods: [GET, HEAD, PATCH, POST, PUT, DELETE]
         credentials: true
       database:
         client: better-sqlite3
         connection: ':memory:'
+      reading:
+        allow:
+          - host: raw.githubusercontent.com
 
     auth:
       providers:
@@ -35,28 +38,7 @@ data:
       rules:
         - allow: [Component, System, API, Resource, Location, Template, User, Group]
       locations:
-        - type: file
-          target: /app/templates/linux-dev-vm.yaml
-        - type: file
-          target: /app/templates/windows-dev-vm.yaml
-        - type: file
-          target: /app/templates/custom-vm.yaml
-
-    kubernetes:
-      serviceLocatorMethod:
-        type: multiTenant
-      clusterLocatorMethods:
-        - type: config
-          clusters:
-            - url: https://kubernetes.default.svc
-              name: local-dc
-              authProvider: serviceAccount
-              skipTLSVerify: true
-              skipMetricsLookup: false
-              customResources:
-                - group: kubevirt.io
-                  apiVersion: v1
-                  plural: virtualmachines
-                - group: kubevirt.io
-                  apiVersion: v1
-                  plural: virtualmachineinstances
+        - type: url
+          target: https://raw.githubusercontent.com/stevebestone/local-dc/main/backstage-templates/ubuntu-vm.yaml
+        - type: url
+          target: https://raw.githubusercontent.com/stevebestone/local-dc/main/backstage-templates/linuxmint-vm.yaml
