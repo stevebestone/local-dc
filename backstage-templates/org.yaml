@@ -1,0 +1,95 @@
+---
+apiVersion: backstage.io/v1alpha1
+kind: Group
+metadata:
+  name: admins
+  title: Administrators
+  description: Platform administrators
+spec:
+  type: team
+  children: []
+---
+apiVersion: backstage.io/v1alpha1
+kind: Group
+metadata:
+  name: engineers
+  title: Engineering Team
+  description: Development engineers
+spec:
+  type: team
+  parent: admins
+  children: []
+---
+apiVersion: backstage.io/v1alpha1
+kind: User
+metadata:
+  name: stevebestone
+  title: Steve Bechstein
+  annotations:
+    github.com/user-login: stevebestone
+spec:
+  profile:
+    displayName: Steve Bechstein
+    email: steve@localdc.dev
+  memberOf:
+    - admins
+---
+apiVersion: backstage.io/v1alpha1
+kind: User
+metadata:
+  name: engineer-1
+  title: Engineer 1
+spec:
+  profile:
+    displayName: Engineer 1
+    email: engineer1@localdc.dev
+  memberOf:
+    - engineers
+---
+apiVersion: backstage.io/v1alpha1
+kind: User
+metadata:
+  name: engineer-2
+  title: Engineer 2
+spec:
+  profile:
+    displayName: Engineer 2
+    email: engineer2@localdc.dev
+  memberOf:
+    - engineers
+---
+apiVersion: backstage.io/v1alpha1
+kind: User
+metadata:
+  name: engineer-3
+  title: Engineer 3
+spec:
+  profile:
+    displayName: Engineer 3
+    email: engineer3@localdc.dev
+  memberOf:
+    - engineers
+---
+apiVersion: backstage.io/v1alpha1
+kind: User
+metadata:
+  name: engineer-4
+  title: Engineer 4
+spec:
+  profile:
+    displayName: Engineer 4
+    email: engineer4@localdc.dev
+  memberOf:
+    - engineers
+---
+apiVersion: backstage.io/v1alpha1
+kind: User
+metadata:
+  name: engineer-5
+  title: Engineer 5
+spec:
+  profile:
+    displayName: Engineer 5
+    email: engineer5@localdc.dev
+  memberOf:
+    - engineers
