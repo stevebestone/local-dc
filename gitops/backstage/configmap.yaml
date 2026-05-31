@@ -7,13 +7,13 @@ data:
   app-config.yaml: |
     app:
       title: Local DC - Developer Portal
-      baseUrl: http://192.168.1.105:30081
+      baseUrl: http://localhost:7007
 
     organization:
       name: Local Datacenter
 
     backend:
-      baseUrl: http://192.168.1.105:30081
+      baseUrl: http://localhost:7007
       listen:
         port: 7007
       csp:
