@@ -13,12 +13,13 @@ spec:
       labels:
         app: backstage
       annotations:
-        config-hash: "v5-guest-only"
+        config-hash: "v6-custom-idp"
     spec:
       serviceAccountName: backstage
       containers:
         - name: backstage
-          image: ghcr.io/backstage/backstage:latest
+          image: localhost/backstage-idp:latest
+          imagePullPolicy: Never
           ports:
             - containerPort: 7007
           volumeMounts:
