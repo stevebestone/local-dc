@@ -65,7 +65,3 @@ spec:
             Memory: ${{ parameters.memory }}
             Disk: ${{ parameters.diskSize }}
             Image: quay.io/containerdisks/ubuntu:24.04
-  output:
-    links:
-      - title: View in KubeVirt Manager
-        url: http://192.168.1.105:30080
