@@ -69,19 +69,3 @@ spec:
     links:
       - title: View in KubeVirt Manager
         url: http://192.168.1.105:30080
-      - title: VM Manifest Details
-        url: http://192.168.1.105:30082
-    text: |
-      ## VM Provisioning Request Submitted
-
-      Your Linux Mint VM **${{ parameters.vmName }}** has been requested.
-
-      To complete provisioning, add this VM to `gitops/vms/` in the repo:
-
-      ```
-      Owner: ${{ parameters.owner }}
-      CPU: ${{ parameters.cpuCores }} cores
-      Memory: ${{ parameters.memory }}
-      Disk: ${{ parameters.diskSize }}
-      Image: Linux Mint (ISO install)
-      ```
