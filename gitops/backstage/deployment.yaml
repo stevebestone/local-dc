@@ -13,7 +13,7 @@ spec:
       labels:
         app: backstage
       annotations:
-        config-hash: "v7-keycloak-oidc"
+        config-hash: "v8-oidc-module"
     spec:
       serviceAccountName: backstage
       containers:

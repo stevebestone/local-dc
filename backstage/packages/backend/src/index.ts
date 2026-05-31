@@ -26,6 +26,7 @@ backend.add(import('@backstage/plugin-techdocs-backend'));
 // auth plugin
 backend.add(import('@backstage/plugin-auth-backend'));
 backend.add(import('@backstage/plugin-auth-backend-module-github-provider'));
+backend.add(import('@backstage/plugin-auth-backend-module-oidc-provider'));
 // Guest auth kept as fallback for development
 backend.add(import('@backstage/plugin-auth-backend-module-guest-provider'));
 
