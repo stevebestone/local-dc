@@ -13,7 +13,7 @@ spec:
       labels:
         app: backstage
       annotations:
-        config-hash: "v4-github-auth"
+        config-hash: "v5-guest-only"
     spec:
       serviceAccountName: backstage
       containers:
@@ -21,10 +21,6 @@ spec:
           image: ghcr.io/backstage/backstage:latest
           ports:
             - containerPort: 7007
-          envFrom:
-            - secretRef:
-                name: backstage-github-oauth
-                optional: true
           volumeMounts:
             - name: app-config
               mountPath: /app/app-config.production.yaml
