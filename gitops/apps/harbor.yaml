@@ -23,6 +23,20 @@ spec:
         harborAdminPassword: ""
         existingSecretAdminPassword: harbor-admin
         existingSecretAdminPasswordKey: HARBOR_ADMIN_PASSWORD
+        core:
+          configureUserSettings: |-
+            {
+              "auth_mode": "oidc_auth",
+              "oidc_name": "Keycloak",
+              "oidc_endpoint": "http://192.168.1.105:30083/realms/local-dc",
+              "oidc_client_id": "harbor",
+              "oidc_client_secret": "harbor-secret-change-me",
+              "oidc_scope": "openid,profile,email,groups",
+              "oidc_groups_claim": "groups",
+              "oidc_admin_group": "admins",
+              "oidc_auto_onboard": "true",
+              "oidc_user_claim": "preferred_username"
+            }
         persistence:
           enabled: true
           persistentVolumeClaim:
