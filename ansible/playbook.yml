@@ -20,7 +20,7 @@
     # Set true to deploy and start the CirrOS demo VM for verification
     deploy_demo_vm: true
     # Detect immutable OSTree distros (Bazzite, Silverblue, etc.)
-    is_ostree: "{{ ansible_pkg_mgr == 'atomic_container' or (lookup('pipe', 'command -v rpm-ostree 2>/dev/null', errors='ignore') | length > 0) }}"
+    is_ostree: "{{ ansible_pkg_mgr == 'atomic_container' or (lookup('pipe', 'command -v rpm-ostree 2>/dev/null || true', errors='ignore') | default('') | length > 0) }}"
 
   pre_tasks:
     # ─── Pre-flight checks ─────────────────────────────────────────
