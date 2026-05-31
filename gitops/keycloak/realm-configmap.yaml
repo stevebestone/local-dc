@@ -24,6 +24,10 @@ data:
           {
             "name": "developer",
             "description": "Developer role"
+          },
+          {
+            "name": "platform-admin",
+            "description": "Platform administrator service account for OIDC integration"
           }
         ]
       },
@@ -39,9 +43,39 @@ data:
           "realmRoles": [
             "developer"
           ]
+        },
+        {
+          "name": "platform-admins",
+          "realmRoles": [
+            "admin",
+            "platform-admin"
+          ]
         }
       ],
       "users": [
+        {
+          "username": "platform-admin",
+          "email": "platform-admin@localdc.dev",
+          "firstName": "Platform",
+          "lastName": "Admin",
+          "enabled": true,
+          "serviceAccountClientId": null,
+          "credentials": [
+            {
+              "type": "password",
+              "value": "${env.PLATFORM_ADMIN_PASSWORD:changeme}",
+              "temporary": false
+            }
+          ],
+          "groups": [
+            "platform-admins",
+            "admins"
+          ],
+          "realmRoles": [
+            "admin",
+            "platform-admin"
+          ]
+        },
         {
           "username": "steve",
           "email": "steve@localdc.dev",
@@ -222,6 +256,78 @@ data:
           "redirectUris": [
             "http://192.168.1.105:30082/*",
             "http://localhost:30082/*"
+          ],
+          "webOrigins": [
+            "*"
+          ],
+          "standardFlowEnabled": true,
+          "directAccessGrantsEnabled": false,
+          "protocol": "openid-connect",
+          "defaultClientScopes": [
+            "openid",
+            "profile",
+            "email"
+          ],
+          "protocolMappers": [
+            {
+              "name": "groups",
+              "protocol": "openid-connect",
+              "protocolMapper": "oidc-group-membership-mapper",
+              "config": {
+                "full.path": "false",
+                "id.token.claim": "true",
+                "access.token.claim": "true",
+                "claim.name": "groups",
+                "userinfo.token.claim": "true"
+              }
+            }
+          ]
+        },
+        {
+          "clientId": "grafana",
+          "name": "Grafana",
+          "enabled": true,
+          "publicClient": false,
+          "secret": "${env.GRAFANA_OIDC_SECRET:grafana-secret-change-me}",
+          "redirectUris": [
+            "http://192.168.1.105:30084/*",
+            "http://localhost:30084/*"
+          ],
+          "webOrigins": [
+            "*"
+          ],
+          "standardFlowEnabled": true,
+          "directAccessGrantsEnabled": true,
+          "protocol": "openid-connect",
+          "defaultClientScopes": [
+            "openid",
+            "profile",
+            "email"
+          ],
+          "protocolMappers": [
+            {
+              "name": "groups",
+              "protocol": "openid-connect",
+              "protocolMapper": "oidc-group-membership-mapper",
+              "config": {
+                "full.path": "false",
+                "id.token.claim": "true",
+                "access.token.claim": "true",
+                "claim.name": "groups",
+                "userinfo.token.claim": "true"
+              }
+            }
+          ]
+        },
+        {
+          "clientId": "harbor",
+          "name": "Harbor Registry",
+          "enabled": true,
+          "publicClient": false,
+          "secret": "${env.HARBOR_OIDC_SECRET:harbor-secret-change-me}",
+          "redirectUris": [
+            "http://192.168.1.105:30085/*",
+            "http://localhost:30085/*"
           ],
           "webOrigins": [
             "*"

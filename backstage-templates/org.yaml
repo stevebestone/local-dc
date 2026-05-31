@@ -21,6 +21,31 @@ spec:
   children: []
 ---
 apiVersion: backstage.io/v1alpha1
+kind: Group
+metadata:
+  name: platform-admins
+  title: Platform Administrators
+  description: Service accounts for platform OIDC integration
+spec:
+  type: team
+  parent: admins
+  children: []
+---
+apiVersion: backstage.io/v1alpha1
+kind: User
+metadata:
+  name: platform-admin
+  title: Platform Admin
+  description: Service account for OIDC integration across all platform applications
+spec:
+  profile:
+    displayName: Platform Admin
+    email: platform-admin@localdc.dev
+  memberOf:
+    - platform-admins
+    - admins
+---
+apiVersion: backstage.io/v1alpha1
 kind: User
 metadata:
   name: stevebestone
