@@ -1,21 +1,19 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: kubevirt-manager
+  name: keycloak
   namespace: argocd
 spec:
   project: default
   source:
     repoURL: https://github.com/stevebestone/local-dc.git
     targetRevision: main
-    path: gitops/kubevirt-manager
+    path: gitops/keycloak
   destination:
     server: https://kubernetes.default.svc
-    namespace: platform
   syncPolicy:
     automated:
       prune: true
       selfHeal: true
     syncOptions:
       - CreateNamespace=true
-      - ServerSideApply=true

@@ -2,7 +2,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: backstage-app-config
-  namespace: backstage
+  namespace: platform
 data:
   app-config.yaml: |
     app:
@@ -34,6 +34,15 @@ data:
       providers:
         guest:
           dangerouslyAllowOutsideDevelopment: true
+        oidc:
+          development:
+            metadataUrl: http://keycloak.keycloak.svc.cluster.local:8080/realms/local-dc/.well-known/openid-configuration
+            clientId: backstage
+            clientSecret: backstage-secret
+            prompt: auto
+            signIn:
+              resolvers:
+                - resolver: emailMatchingUserEntityProfileEmail
 
     catalog:
       rules:

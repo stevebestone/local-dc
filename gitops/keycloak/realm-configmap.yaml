@@ -1,0 +1,164 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: keycloak-realm
+  namespace: keycloak
+data:
+  local-dc-realm.json: |
+    {
+      "realm": "local-dc",
+      "enabled": true,
+      "sslRequired": "none",
+      "registrationAllowed": false,
+      "loginWithEmailAllowed": true,
+      "duplicateEmailsAllowed": false,
+      "resetPasswordAllowed": true,
+      "editUsernameAllowed": false,
+      "bruteForceProtected": true,
+      "roles": {
+        "realm": [
+          { "name": "admin", "description": "Platform administrator" },
+          { "name": "developer", "description": "Developer role" }
+        ]
+      },
+      "groups": [
+        { "name": "admins", "realmRoles": ["admin"] },
+        { "name": "engineers", "realmRoles": ["developer"] }
+      ],
+      "users": [
+        {
+          "username": "steve",
+          "email": "steve@localdc.dev",
+          "firstName": "Steve",
+          "lastName": "Bechstein",
+          "enabled": true,
+          "credentials": [{ "type": "password", "value": "admin", "temporary": true }],
+          "groups": ["admins"],
+          "realmRoles": ["admin"]
+        },
+        {
+          "username": "engineer1",
+          "email": "engineer1@localdc.dev",
+          "firstName": "Engineer",
+          "lastName": "One",
+          "enabled": true,
+          "credentials": [{ "type": "password", "value": "changeme", "temporary": true }],
+          "groups": ["engineers"],
+          "realmRoles": ["developer"]
+        },
+        {
+          "username": "engineer2",
+          "email": "engineer2@localdc.dev",
+          "firstName": "Engineer",
+          "lastName": "Two",
+          "enabled": true,
+          "credentials": [{ "type": "password", "value": "changeme", "temporary": true }],
+          "groups": ["engineers"],
+          "realmRoles": ["developer"]
+        },
+        {
+          "username": "engineer3",
+          "email": "engineer3@localdc.dev",
+          "firstName": "Engineer",
+          "lastName": "Three",
+          "enabled": true,
+          "credentials": [{ "type": "password", "value": "changeme", "temporary": true }],
+          "groups": ["engineers"],
+          "realmRoles": ["developer"]
+        },
+        {
+          "username": "engineer4",
+          "email": "engineer4@localdc.dev",
+          "firstName": "Engineer",
+          "lastName": "Four",
+          "enabled": true,
+          "credentials": [{ "type": "password", "value": "changeme", "temporary": true }],
+          "groups": ["engineers"],
+          "realmRoles": ["developer"]
+        },
+        {
+          "username": "engineer5",
+          "email": "engineer5@localdc.dev",
+          "firstName": "Engineer",
+          "lastName": "Five",
+          "enabled": true,
+          "credentials": [{ "type": "password", "value": "changeme", "temporary": true }],
+          "groups": ["engineers"],
+          "realmRoles": ["developer"]
+        }
+      ],
+      "clients": [
+        {
+          "clientId": "backstage",
+          "name": "Backstage IDP",
+          "enabled": true,
+          "publicClient": false,
+          "secret": "backstage-secret",
+          "redirectUris": [
+            "http://192.168.1.105:30081/*",
+            "http://localhost:30081/*"
+          ],
+          "webOrigins": ["*"],
+          "standardFlowEnabled": true,
+          "directAccessGrantsEnabled": true,
+          "protocol": "openid-connect",
+          "defaultClientScopes": ["openid", "profile", "email", "roles"],
+          "protocolMappers": [
+            {
+              "name": "groups",
+              "protocol": "openid-connect",
+              "protocolMapper": "oidc-group-membership-mapper",
+              "config": {
+                "full.path": "false",
+                "id.token.claim": "true",
+                "access.token.claim": "true",
+                "claim.name": "groups",
+                "userinfo.token.claim": "true"
+              }
+            },
+            {
+              "name": "realm-roles",
+              "protocol": "openid-connect",
+              "protocolMapper": "oidc-usermodel-realm-role-mapper",
+              "config": {
+                "multivalued": "true",
+                "id.token.claim": "true",
+                "access.token.claim": "true",
+                "claim.name": "realm_roles",
+                "userinfo.token.claim": "true"
+              }
+            }
+          ]
+        },
+        {
+          "clientId": "argocd",
+          "name": "ArgoCD",
+          "enabled": true,
+          "publicClient": false,
+          "secret": "argocd-secret",
+          "redirectUris": [
+            "http://192.168.1.105:30082/*",
+            "http://localhost:30082/*"
+          ],
+          "webOrigins": ["*"],
+          "standardFlowEnabled": true,
+          "directAccessGrantsEnabled": false,
+          "protocol": "openid-connect",
+          "defaultClientScopes": ["openid", "profile", "email"],
+          "protocolMappers": [
+            {
+              "name": "groups",
+              "protocol": "openid-connect",
+              "protocolMapper": "oidc-group-membership-mapper",
+              "config": {
+                "full.path": "false",
+                "id.token.claim": "true",
+                "access.token.claim": "true",
+                "claim.name": "groups",
+                "userinfo.token.claim": "true"
+              }
+            }
+          ]
+        }
+      ]
+    }

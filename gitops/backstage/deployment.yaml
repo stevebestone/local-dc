@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: backstage
-  namespace: backstage
+  namespace: platform
 spec:
   replicas: 1
   selector:
@@ -13,7 +13,7 @@ spec:
       labels:
         app: backstage
       annotations:
-        config-hash: "v6-custom-idp"
+        config-hash: "v7-keycloak-oidc"
     spec:
       serviceAccountName: backstage
       containers:

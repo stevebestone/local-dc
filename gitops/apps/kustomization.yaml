@@ -5,4 +5,5 @@ resources:
   - cdi.yaml
   - kubevirt-manager.yaml
   - vms.yaml
+  - keycloak.yaml
   - backstage.yaml
