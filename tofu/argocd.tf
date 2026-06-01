@@ -28,7 +28,7 @@ resource "helm_release" "argocd" {
   # ── OIDC (Keycloak) ──
   set {
     name  = "configs.cm.url"
-    value = "http://${var.host_ip}:30082"
+    value = "http://localhost:30082"
   }
   set {
     name  = "configs.cm.oidc\\.config"
