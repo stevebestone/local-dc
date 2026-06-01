@@ -8,8 +8,10 @@ Engineers self-provision development VMs through the Backstage Developer Portal.
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│  Bare-Metal Intel i9 — Ubuntu Linux                     │
+│  Bare-Metal Intel i9 — Linux  (host /dev/kvm)           │
 │                                                         │
+│  podman compose up                                      │
+│  ┌─── rancher/k3s container (privileged) ────────────┐  │
 │  ┌─── k3s (Kubernetes) ──────────────────────────────┐  │
 │  │                                                   │  │
 │  │  argocd        → ArgoCD (GitOps controller)       │  │
@@ -20,6 +22,7 @@ Engineers self-provision development VMs through the Backstage Developer Portal.
 │  │  developers    → Engineer VMs (KubeVirt)          │  │
 │  │                                                   │  │
 │  └───────────────────────────────────────────────────┘  │
+│  └─── kvm passthrough → KubeVirt runs real VMs ─────┘  │
 │                                                         │
 │  Git repo ──→ ArgoCD ──→ All cluster resources          │
 │  Engineer  ──→ Backstage ──→ VM provisioning            │
@@ -59,46 +62,59 @@ Engineers self-provision development VMs through the Backstage Developer Portal.
 
 ### Prerequisites
 
-- Bare-metal Linux (Ubuntu, Fedora, or Bazzite) with Intel/AMD CPU
-- VT-x/AMD-V enabled in BIOS
-- At least 16 GB RAM
-- `/dev/kvm` available
+- Linux host (Ubuntu, Fedora, or Bazzite) with an Intel/AMD CPU
+- VT-x/AMD-V enabled in BIOS and `/dev/kvm` available (`ls -l /dev/kvm`)
+- **Podman** with the `podman compose` provider (or `podman-compose`) and `make`
+- At least 16 GB RAM (32 GB+ recommended for several VMs)
+
+> **Run rootful.** In-container kubelet plus `/dev/kvm` passthrough is only reliable
+> under rootful Podman — use `sudo -E podman compose ...` or a rootful `podman machine`.
+> Rootless privileged + KVM is finicky and not supported here.
 
 ### Install
 
 ```bash
 git clone https://github.com/stevebestone/local-dc.git
 cd local-dc
-chmod +x setup.sh
-sudo ./setup.sh
+cp .env.example .env          # optional: pin k3s tag / point at a branch
+make up                       # == sudo -E podman compose up -d
+make logs                     # watch the bootstrapper finish
 ```
 
-The setup script:
-1. Installs system dependencies + Podman (removes Docker if present)
-2. Installs k3s
-3. Installs ArgoCD
-4. Creates the root App-of-Apps (ArgoCD syncs everything else from Git)
-5. Installs virtctl CLI
+`make up` (`podman compose up`):
+1. Starts a privileged `rancher/k3s` container — Kubernetes running **inside a container**,
+   with the host's `/dev/kvm` passed through for KubeVirt.
+2. Runs a one-shot bootstrapper that installs ArgoCD and the root App-of-Apps.
+3. ArgoCD then syncs the rest from Git: KubeVirt, CDI, KubeVirt Manager, Keycloak,
+   Backstage, monitoring, and Harbor.
 
-After setup, ArgoCD automatically deploys: KubeVirt, CDI, KubeVirt Manager, Keycloak, and Backstage.
+```bash
+make status        # containers + nodes + ArgoCD apps
+make verify        # confirm /dev/kvm reached the node (no slow software emulation)
+eval "$(make -s kubeconfig)"   # point host kubectl/virtctl at the cluster
+```
+
+### Teardown
+
+```bash
+make down          # stop the DC — cluster state + pulled images are kept for a fast restart
+make wipe          # full reset: podman compose down -v + remove kubeconfig
+```
 
 ### Build Custom Backstage Image
 
-The custom Backstage image includes GitHub OAuth, OIDC (Keycloak), Kubernetes, TechDocs, and other plugins.
+The custom Backstage image includes GitHub OAuth, OIDC (Keycloak), Kubernetes, TechDocs, and other plugins. `make backstage` builds it and loads it straight into the containerized node's image store (the Deployment uses `imagePullPolicy: Never`):
 
 ```bash
 # Install build dependencies (one-time)
 sudo apt-get install -y python3 g++ build-essential libsqlite3-dev
 
-# Build with Podman
-podman build -t localhost/backstage-idp:latest \
-  -f backstage/Dockerfile backstage/
-
-# Import into k3s
-podman save localhost/backstage-idp:latest -o /tmp/backstage.tar
-sudo ctr -n k8s.io images import /tmp/backstage.tar
-rm /tmp/backstage.tar
+# Build + import into the running node
+make backstage
 ```
+
+Under the hood this builds with Podman, then `podman cp`s the image tar into the
+`server` container and imports it with `k3s ctr -n k8s.io images import`.
 
 ## Login Procedures
 
@@ -243,10 +259,11 @@ virtctl vnc <vm-name> -n developers        # graphical
 
 ```
 local-dc/
-├── setup.sh                          # Bootstrap script
-├── ansible/
-│   ├── inventory.yml                 # Localhost inventory
-│   └── playbook.yml                  # k3s + ArgoCD + Podman + virtctl
+├── compose.yaml                      # The datacenter emulator (podman compose up/down)
+├── .env.example                      # k3s tag, ports, GitOps source overrides
+├── Makefile                          # up / down / wipe / status / backstage / verify
+├── bootstrap/
+│   └── entrypoint.sh                 # waits for k3s → installs ArgoCD → root App-of-Apps
 ├── gitops/
 │   ├── apps/                         # ArgoCD App-of-Apps
 │   │   ├── kubevirt.yaml
@@ -255,7 +272,7 @@ local-dc/
 │   │   ├── keycloak.yaml
 │   │   ├── backstage.yaml
 │   │   └── vms.yaml
-│   ├── argocd/                       # ArgoCD install + OIDC config
+│   ├── argocd/                       # ArgoCD install + OIDC + NodePort patches
 │   ├── backstage/                    # Backstage deployment (platform ns)
 │   ├── keycloak/                     # Keycloak deployment + realm config
 │   ├── kubevirt/                     # KubeVirt operator + CR
@@ -267,7 +284,7 @@ local-dc/
 │   ├── org.yaml                      # Users and groups
 │   ├── ubuntu-vm.yaml                # Ubuntu VM template
 │   └── linuxmint-vm.yaml            # Linux Mint VM template
-└── datacenter.yaml                   # Lima config (macOS development)
+└── datacenter.yaml                   # Optional Lima VM for macOS hosts (see note below)
 ```
 
 ## GitOps Workflow
@@ -303,14 +320,25 @@ The custom Backstage image includes:
 3. Commit and push
 4. ArgoCD syncs the org catalog; Keycloak pod restart imports the realm
 
-## Supported Distros
+## Supported Hosts
 
-The setup script auto-detects and supports:
-- **Ubuntu/Debian** (apt)
-- **Fedora** (dnf)
-- **Bazzite / Fedora Atomic** (rpm-ostree)
+The k3s cluster runs as a **container**, so there is no host mutation — no native k3s
+service, no removed packages. Any Linux host with Podman and `/dev/kvm` works:
 
-Docker is removed and replaced with **Podman** on all distros.
+- **Ubuntu / Debian**, **Fedora**, **Bazzite / Fedora Atomic**
+
+For best VM performance, ensure the KVM and vhost modules are loaded on the host:
+
+```bash
+sudo modprobe kvm vhost_net
+```
+
+### macOS note
+
+`datacenter.yaml` is an optional Lima VM for macOS hosts. Apple Silicon has **no
+`/dev/kvm`**, so KubeVirt there falls back to slow software emulation — the
+containerized path above is intended for the Linux/i9 host. On macOS, run the Lima VM
+and use it as a Linux host for the same workflow.
 
 ## License
 

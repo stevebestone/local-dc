@@ -1,0 +1,79 @@
+# Datacenter-in-a-Box — containerized k3s
+#
+#   podman compose up -d      → bootstrap the local datacenter
+#   podman compose down       → stop it (cluster + image cache preserved)
+#   podman compose down -v    → full wipe (also via `make wipe`)
+#
+# Run rootful for reliable /dev/kvm passthrough + in-container kubelet:
+#   sudo -E podman compose up -d     (or a rootful `podman machine`)
+#
+# Copy .env.example to .env to override the k3s version, ports, or repo.
+
+services:
+  # ─── The Kubernetes node (k3s server) ──────────────────────────────
+  server:
+    image: rancher/k3s:${K3S_TAG:-v1.35.5-k3s1}
+    container_name: local-dc-server
+    command:
+      - server
+      - --disable=traefik          # UIs are exposed via NodePort, no ingress needed
+      - --disable=servicelb        # NodePort services don't need servicelb
+      - --tls-san=server           # so the bootstrap sidecar can verify TLS over the compose network
+      - --kubelet-arg=allow-privileged=true   # required for KubeVirt virt-launcher /dev/kvm access
+    privileged: true               # required: in-container kubelet + host /dev/kvm passthrough
+    environment:
+      - K3S_KUBECONFIG_OUTPUT=/output/kubeconfig.yaml
+      - K3S_KUBECONFIG_MODE=666
+    volumes:
+      - k3s-data:/var/lib/rancher/k3s   # cluster state + containerd image store (survives `down`)
+      - ./output:/output                # kubeconfig is written here for the host
+    tmpfs:
+      - /run
+      - /var/run
+    ports:
+      - "6443:6443"                     # Kubernetes API (kubeconfig points here)
+      - "30080-30090:30080-30090"       # NodePort UIs: kubevirt-mgr 80, backstage 81,
+                                        # argocd 82, keycloak 83, grafana 84, harbor 85
+    healthcheck:
+      test: ["CMD", "k3s", "kubectl", "get", "--raw=/readyz"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
+    restart: unless-stopped
+
+  # ─── One-shot bootstrapper: installs ArgoCD + the root App-of-Apps ──
+  # Reuses the k3s image (no extra pull, guaranteed-compatible kubectl).
+  bootstrap:
+    image: rancher/k3s:${K3S_TAG:-v1.35.5-k3s1}
+    container_name: local-dc-bootstrap
+    depends_on:
+      server:
+        condition: service_healthy
+    environment:
+      - REPO_URL=${REPO_URL:-https://github.com/stevebestone/local-dc.git}
+      - TARGET_REV=${TARGET_REV:-main}
+    volumes:
+      - ./output:/output
+      - ./gitops:/gitops:ro
+      - ./bootstrap:/bootstrap:ro
+    entrypoint: ["/bin/sh", "/bootstrap/entrypoint.sh"]
+    restart: "no"
+
+  # ─── Optional second node for multi-node realism (off by default) ───
+  # Uncomment, then: podman compose up -d --scale agent=2
+  # agent:
+  #   image: rancher/k3s:${K3S_TAG:-v1.35.5-k3s1}
+  #   command: ["agent"]
+  #   privileged: true
+  #   environment:
+  #     - K3S_URL=https://server:6443
+  #     - K3S_TOKEN_FILE=/var/lib/rancher/k3s/server/node-token
+  #   volumes:
+  #     - k3s-data:/var/lib/rancher/k3s:ro
+  #   depends_on:
+  #     server:
+  #       condition: service_healthy
+
+volumes:
+  k3s-data:
