@@ -13,7 +13,7 @@ spec:
       labels:
         app: keycloak
       annotations:
-        config-hash: "v4-fix-h2-idle-drop"
+        config-hash: "v6-remove-openid-from-scopes"
     spec:
       containers:
         - name: keycloak
