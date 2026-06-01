@@ -1,46 +1,47 @@
 # Local DC — Datacenter-in-a-Box
 
-A fully GitOps-managed local datacenter running on bare-metal Linux, powered by k3s, KubeVirt, ArgoCD, Backstage, and Keycloak.
+A fully GitOps-managed local datacenter running inside Podman containers, powered by k3s, KubeVirt, ArgoCD, Backstage, and Keycloak.
 
 Engineers self-provision development VMs through the Backstage Developer Portal. All infrastructure is declared in Git and synced by ArgoCD.
 
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│  Bare-Metal Intel i9 — Ubuntu Linux                     │
-│                                                         │
-│  ┌─── k3s (Kubernetes) ──────────────────────────────┐  │
-│  │                                                   │  │
-│  │  argocd        → ArgoCD (GitOps controller)       │  │
-│  │  platform      → Backstage IDP + KubeVirt Manager │  │
-│  │  keycloak      → Keycloak IAM (OIDC provider)     │  │
-│  │  kubevirt      → KubeVirt operator                │  │
-│  │  cdi           → Containerized Data Importer      │  │
-│  │  developers    → Engineer VMs (KubeVirt)          │  │
-│  │                                                   │  │
-│  └───────────────────────────────────────────────────┘  │
-│                                                         │
-│  Git repo ──→ ArgoCD ──→ All cluster resources          │
-│  Engineer  ──→ Backstage ──→ VM provisioning            │
-│  Auth      ──→ Keycloak OIDC ──→ All applications      │
-│  Metrics   ──→ Prometheus ──→ Grafana dashboards        │
-│  Images    ──→ Harbor container registry                 │
-└─────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────┐
+│  Host — Intel i9 / 64 GB RAM — Ubuntu Linux              │
+│                                                          │
+│  ┌── Podman Container: k3s-server ────────────────────┐  │
+│  │   k3s (Kubernetes) — privileged + /dev/kvm          │  │
+│  │                                                     │  │
+│  │   argocd        → ArgoCD (GitOps controller)        │  │
+│  │   platform      → Backstage IDP + KubeVirt Manager  │  │
+│  │   keycloak      → Keycloak IAM (OIDC provider)      │  │
+│  │   kubevirt      → KubeVirt operator                  │  │
+│  │   cdi           → Containerized Data Importer        │  │
+│  │   monitoring    → Prometheus + Grafana               │  │
+│  │   harbor        → Container registry                 │  │
+│  │   developers    → Engineer VMs (KubeVirt)            │  │
+│  └─────────────────────────────────────────────────────┘  │
+│                                                          │
+│  podman compose up   → Bootstrap k3s + ArgoCD + GitOps   │
+│  podman compose down → Clean shutdown                    │
+│  Git repo → ArgoCD → All cluster resources               │
+│  Engineer → Backstage → VM provisioning                  │
+└──────────────────────────────────────────────────────────┘
 ```
 
 ## Components
 
 | Component | Version | Namespace | Description |
 |-----------|---------|-----------|-------------|
-| k3s | v1.35.5 | — | Lightweight Kubernetes |
+| k3s | v1.35.5 | — | Lightweight Kubernetes (in Podman container) |
 | ArgoCD | stable | `argocd` | GitOps continuous delivery |
 | KubeVirt | v1.8.2 | `kubevirt` | VM management on Kubernetes |
 | CDI | v1.65.0 | `cdi` | VM disk image management |
 | KubeVirt Manager | latest | `platform` | Web UI for VM operations |
 | Backstage | 1.51 (custom) | `platform` | Internal Developer Portal |
 | Keycloak | 26.0 | `keycloak` | Identity & Access Management |
-| Prometheus | latest | `monitoring` | Metrics collection (7-day retention) |
+| Prometheus | latest | `monitoring` | Metrics collection (14-day retention) |
 | Grafana | latest | `monitoring` | Monitoring dashboards |
 | Harbor | latest | `harbor` | Container/artifact registry |
 
@@ -48,21 +49,22 @@ Engineers self-provision development VMs through the Backstage Developer Portal.
 
 | Service | URL | Auth |
 |---------|-----|------|
-| **Backstage** (Developer Portal) | `http://<node-ip>:30081` | Keycloak OIDC / Guest |
-| **ArgoCD** (GitOps Dashboard) | `http://<node-ip>:30082` | Keycloak OIDC |
-| **Keycloak** (IAM Admin) | `http://<node-ip>:30083` | admin / admin |
-| **Grafana** (Monitoring) | `http://<node-ip>:30084` | admin / (see secret) |
-| **Harbor** (Container Registry) | `http://<node-ip>:30085` | Keycloak OIDC |
-| **KubeVirt Manager** (VM Dashboard) | `http://<node-ip>:30080` | No auth |
+| **Backstage** (Developer Portal) | `http://localhost:30081` | Keycloak OIDC / Guest |
+| **ArgoCD** (GitOps Dashboard) | `http://localhost:30082` | Keycloak OIDC |
+| **Keycloak** (IAM Admin) | `http://localhost:30083` | admin / admin |
+| **Grafana** (Monitoring) | `http://localhost:30084` | admin / (see secret) |
+| **Harbor** (Container Registry) | `http://localhost:30085` | Keycloak OIDC |
+| **KubeVirt Manager** (VM Dashboard) | `http://localhost:30080` | No auth |
 
 ## Quick Start
 
 ### Prerequisites
 
-- Bare-metal Linux (Ubuntu, Fedora, or Bazzite) with Intel/AMD CPU
+- Linux (Ubuntu, Fedora, or Bazzite) with Intel/AMD CPU
 - VT-x/AMD-V enabled in BIOS
-- At least 16 GB RAM
 - `/dev/kvm` available
+- Podman + Podman Compose installed
+- At least 16 GB RAM (64 GB recommended)
 
 ### Install
 
@@ -70,41 +72,69 @@ Engineers self-provision development VMs through the Backstage Developer Portal.
 git clone https://github.com/stevebestone/local-dc.git
 cd local-dc
 chmod +x setup.sh
-sudo ./setup.sh
+./setup.sh
 ```
 
 The setup script:
-1. Installs system dependencies + Podman (removes Docker if present)
-2. Installs k3s
-3. Installs ArgoCD
-4. Creates the root App-of-Apps (ArgoCD syncs everything else from Git)
-5. Installs virtctl CLI
+1. Checks prerequisites (Podman, VT-x, /dev/kvm)
+2. Runs `podman compose up -d` (starts k3s in a container)
+3. Waits for the bootstrap container to install ArgoCD and create the root App-of-Apps
+4. Exports kubeconfig for host `kubectl` access
 
-After setup, ArgoCD automatically deploys: KubeVirt, CDI, KubeVirt Manager, Keycloak, and Backstage.
+After setup, ArgoCD automatically deploys: KubeVirt, CDI, KubeVirt Manager, Keycloak, Backstage, Harbor, Monitoring.
+
+### Lifecycle
+
+```bash
+# Start the datacenter
+podman compose up -d
+
+# Stop (preserves all data in named volumes)
+podman compose down
+
+# Stop and destroy all state (fresh start)
+podman compose down -v
+
+# View logs
+podman logs local-dc-k3s-server-1
+podman logs local-dc-bootstrap-1
+```
+
+### Using kubectl from the host
+
+After running `setup.sh`, a kubeconfig is exported:
+
+```bash
+export KUBECONFIG=~/.kube/config-local-dc
+kubectl get nodes
+kubectl get pods -A
+```
+
+Or use `podman exec` for one-off commands:
+
+```bash
+podman exec local-dc-k3s-server-1 kubectl get pods -A
+```
 
 ### Build Custom Backstage Image
 
 The custom Backstage image includes GitHub OAuth, OIDC (Keycloak), Kubernetes, TechDocs, and other plugins.
 
 ```bash
-# Install build dependencies (one-time)
-sudo apt-get install -y python3 g++ build-essential libsqlite3-dev
+# Build and import into the containerized k3s
+./scripts/import-backstage.sh
 
-# Build with Podman
-podman build -t localhost/backstage-idp:latest \
-  -f backstage/Dockerfile backstage/
-
-# Import into k3s
-podman save localhost/backstage-idp:latest -o /tmp/backstage.tar
-sudo ctr -n k8s.io images import /tmp/backstage.tar
-rm /tmp/backstage.tar
+# Or manually:
+podman build -t localhost/backstage-idp:latest -f backstage/Dockerfile backstage/
+podman save localhost/backstage-idp:latest | \
+  podman exec -i local-dc-k3s-server-1 ctr -n k8s.io images import -
 ```
 
 ## Login Procedures
 
 ### Backstage (Developer Portal)
 
-1. Open `http://<node-ip>:30081`
+1. Open `http://localhost:30081`
 2. Choose login method:
    - **Guest**: Click "Enter" (no credentials, development mode)
    - **OIDC (Keycloak)**: Click "OIDC" → redirects to Keycloak login
@@ -113,34 +143,36 @@ rm /tmp/backstage.tar
 
 ### ArgoCD
 
-1. Open `http://<node-ip>:30082`
+1. Open `http://localhost:30082`
 2. Login options:
    - **Keycloak**: Click "Log in via Keycloak" → use Keycloak credentials
    - **Local admin**: Username `admin`, password:
      ```bash
-     kubectl -n argocd get secret argocd-initial-admin-secret \
+     podman exec local-dc-k3s-server-1 kubectl -n argocd \
+       get secret argocd-initial-admin-secret \
        -o jsonpath='{.data.password}' | base64 -d && echo
      ```
 
 ### Keycloak Admin Console
 
-1. Open `http://<node-ip>:30083`
+1. Open `http://localhost:30083`
 2. Login: `admin` / `admin`
 3. Select realm: `local-dc`
 
 ### Harbor
 
-1. Open `http://<node-ip>:30085`
+1. Open `http://localhost:30085`
 2. Click **"LOGIN VIA OIDC PROVIDER"**
 3. Keycloak login page → enter credentials
 4. Users in `admins` group get Harbor admin access
 
 ### Grafana
 
-1. Open `http://<node-ip>:30084`
+1. Open `http://localhost:30084`
 2. Username: `admin`, password:
    ```bash
-   kubectl -n monitoring get secret monitoring-grafana \
+   podman exec local-dc-k3s-server-1 kubectl -n monitoring \
+     get secret monitoring-grafana \
      -o jsonpath='{.data.admin-password}' | base64 -d && echo
    ```
 
@@ -162,10 +194,10 @@ All secrets are stored as Kubernetes Secrets, never in Git:
 
 ```bash
 # Bootstrap all secrets (local only, gitignored)
-sudo ./secrets/create-secrets.sh
+podman exec local-dc-k3s-server-1 /bin/sh -c 'cat | sh' < secrets/create-secrets.sh
 
-# With custom passwords
-PLATFORM_ADMIN_PASSWORD=... KC_ADMIN_PASSWORD=... sudo -E ./secrets/create-secrets.sh
+# Or exec into the container
+podman exec -it local-dc-k3s-server-1 sh
 ```
 
 A pre-commit hook (`.githooks/pre-commit`) blocks commits containing hardcoded credentials.
@@ -226,27 +258,49 @@ ArgoCD syncs automatically — the VM appears within ~3 minutes.
 ### VM Management Commands
 
 ```bash
+# Set kubeconfig (or prefix commands with podman exec)
+export KUBECONFIG=~/.kube/config-local-dc
+
 # List all VMs
 kubectl get vm,vmi -n developers
 
-# Start / Stop / Restart
-virtctl start <vm-name> -n developers
-virtctl stop <vm-name> -n developers
-virtctl restart <vm-name> -n developers
+# Start / Stop / Restart (install virtctl on host, or exec into container)
+podman exec local-dc-k3s-server-1 virtctl start <vm-name> -n developers
+podman exec local-dc-k3s-server-1 virtctl stop <vm-name> -n developers
+podman exec local-dc-k3s-server-1 virtctl restart <vm-name> -n developers
 
 # Console access
-virtctl console <vm-name> -n developers    # serial
-virtctl vnc <vm-name> -n developers        # graphical
+podman exec -it local-dc-k3s-server-1 virtctl console <vm-name> -n developers
 ```
+
+## Configuration
+
+Configuration is managed via the `.env` file in the project root:
+
+```bash
+# k3s version
+K3S_VERSION=v1.35.5-k3s1
+
+# Git repo and branch for ArgoCD
+REPO_URL=https://github.com/stevebestone/local-dc.git
+TARGET_REVISION=main
+```
+
+Create a `.env.local` file for personal overrides (gitignored).
 
 ## Repository Structure
 
 ```
 local-dc/
-├── setup.sh                          # Bootstrap script
-├── ansible/
-│   ├── inventory.yml                 # Localhost inventory
-│   └── playbook.yml                  # k3s + ArgoCD + Podman + virtctl
+├── compose.yaml                      # Podman Compose — datacenter definition
+├── .env                              # Default configuration
+├── setup.sh                          # Bootstrap script (containerized)
+├── scripts/
+│   ├── bootstrap.sh                  # k3s init (ArgoCD + root app)
+│   └── import-backstage.sh           # Build & import Backstage image
+├── ansible/                          # Native k3s install (alternative)
+│   ├── inventory.yml
+│   └── playbook.yml
 ├── gitops/
 │   ├── apps/                         # ArgoCD App-of-Apps
 │   │   ├── kubevirt.yaml
@@ -254,6 +308,8 @@ local-dc/
 │   │   ├── kubevirt-manager.yaml
 │   │   ├── keycloak.yaml
 │   │   ├── backstage.yaml
+│   │   ├── monitoring.yaml
+│   │   ├── harbor.yaml
 │   │   └── vms.yaml
 │   ├── argocd/                       # ArgoCD install + OIDC config
 │   ├── backstage/                    # Backstage deployment (platform ns)
@@ -264,9 +320,9 @@ local-dc/
 │   └── vms/                          # Developer VMs (developers ns)
 ├── backstage/                        # Backstage app source + Dockerfile
 ├── backstage-templates/              # Scaffolder templates + org catalog
-│   ├── org.yaml                      # Users and groups
-│   ├── ubuntu-vm.yaml                # Ubuntu VM template
-│   └── linuxmint-vm.yaml            # Linux Mint VM template
+│   ├── org.yaml
+│   ├── ubuntu-vm.yaml
+│   └── linuxmint-vm.yaml
 └── datacenter.yaml                   # Lima config (macOS development)
 ```
 
@@ -283,6 +339,20 @@ Edit gitops/ files → git commit → git push → ArgoCD syncs → Cluster upda
 - `kubectl get/logs/describe` is allowed for troubleshooting
 - All infrastructure changes go through Git commits
 - ArgoCD auto-syncs every 3 minutes (or force with refresh annotation)
+
+## Native Install (Alternative)
+
+For users who prefer k3s installed directly on the host (without containers):
+
+```bash
+# Install Ansible if needed
+sudo apt-get install -y ansible
+
+# Run the playbook
+sudo ansible-playbook -i ansible/inventory.yml ansible/playbook.yml --become
+```
+
+This installs k3s natively, configures ArgoCD, and sets up the full GitOps pipeline on the host OS.
 
 ## Backstage Plugins
 
@@ -305,12 +375,10 @@ The custom Backstage image includes:
 
 ## Supported Distros
 
-The setup script auto-detects and supports:
-- **Ubuntu/Debian** (apt)
-- **Fedora** (dnf)
-- **Bazzite / Fedora Atomic** (rpm-ostree)
-
-Docker is removed and replaced with **Podman** on all distros.
+The setup script checks for Podman and `/dev/kvm`. Any Linux distro that provides these will work:
+- **Ubuntu/Debian** — `sudo apt-get install -y podman podman-compose`
+- **Fedora** — `sudo dnf install -y podman podman-compose`
+- **Bazzite / Fedora Atomic** — Podman is pre-installed
 
 ## License
 

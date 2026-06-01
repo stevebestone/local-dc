@@ -17,7 +17,7 @@ spec:
           existingSecret: grafana-admin
           grafana.ini:
             server:
-              root_url: http://192.168.1.105:30084
+              root_url: http://localhost:30084
             auth:
               disable_login_form: false
             auth.generic_oauth:
@@ -27,9 +27,9 @@ spec:
               client_id: grafana
               client_secret: grafana-secret-change-me
               scopes: openid profile email groups
-              auth_url: http://192.168.1.105:30083/realms/local-dc/protocol/openid-connect/auth
-              token_url: http://192.168.1.105:30083/realms/local-dc/protocol/openid-connect/token
-              api_url: http://192.168.1.105:30083/realms/local-dc/protocol/openid-connect/userinfo
+              auth_url: http://localhost:30083/realms/local-dc/protocol/openid-connect/auth
+              token_url: http://localhost:30083/realms/local-dc/protocol/openid-connect/token
+              api_url: http://localhost:30083/realms/local-dc/protocol/openid-connect/userinfo
               role_attribute_path: contains(groups[*], 'admins') && 'Admin' || 'Viewer'
           service:
             type: NodePort
@@ -48,21 +48,21 @@ spec:
                     path: /var/lib/grafana/dashboards/default
         prometheus:
           prometheusSpec:
-            retention: 7d
+            retention: 14d
             resources:
               requests:
-                memory: 512Mi
-                cpu: 250m
+                memory: 1Gi
+                cpu: 500m
               limits:
-                memory: 2Gi
-                cpu: 1000m
+                memory: 4Gi
+                cpu: 2000m
             storageSpec:
               volumeClaimTemplate:
                 spec:
                   accessModes: ["ReadWriteOnce"]
                   resources:
                     requests:
-                      storage: 20Gi
+                      storage: 50Gi
         alertmanager:
           enabled: false
         nodeExporter:

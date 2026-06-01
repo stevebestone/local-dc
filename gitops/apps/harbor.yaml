@@ -19,7 +19,7 @@ spec:
                 nodePort: 30085
           tls:
             enabled: false
-        externalURL: http://192.168.1.105:30085
+        externalURL: http://localhost:30085
         harborAdminPassword: ""
         existingSecretAdminPassword: harbor-admin
         existingSecretAdminPasswordKey: HARBOR_ADMIN_PASSWORD
@@ -28,7 +28,7 @@ spec:
             {
               "auth_mode": "oidc_auth",
               "oidc_name": "Keycloak",
-              "oidc_endpoint": "http://192.168.1.105:30083/realms/local-dc",
+              "oidc_endpoint": "http://localhost:30083/realms/local-dc",
               "oidc_client_id": "harbor",
               "oidc_client_secret": "harbor-secret-change-me",
               "oidc_scope": "openid,profile,email,groups",

@@ -205,7 +205,6 @@ data:
           "publicClient": false,
           "secret": "${env.BACKSTAGE_OIDC_SECRET:backstage-secret-change-me}",
           "redirectUris": [
-            "http://192.168.1.105:30081/*",
             "http://localhost:30081/*"
           ],
           "webOrigins": [
@@ -254,7 +253,6 @@ data:
           "publicClient": false,
           "secret": "${env.ARGOCD_OIDC_SECRET:argocd-secret-change-me}",
           "redirectUris": [
-            "http://192.168.1.105:30082/*",
             "http://localhost:30082/*"
           ],
           "webOrigins": [
@@ -290,7 +288,6 @@ data:
           "publicClient": false,
           "secret": "${env.GRAFANA_OIDC_SECRET:grafana-secret-change-me}",
           "redirectUris": [
-            "http://192.168.1.105:30084/*",
             "http://localhost:30084/*"
           ],
           "webOrigins": [
@@ -326,7 +323,6 @@ data:
           "publicClient": false,
           "secret": "${env.HARBOR_OIDC_SECRET:harbor-secret-change-me}",
           "redirectUris": [
-            "http://192.168.1.105:30085/*",
             "http://localhost:30085/*"
           ],
           "webOrigins": [

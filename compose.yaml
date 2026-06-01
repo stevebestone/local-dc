@@ -1,0 +1,76 @@
+# Local DC — Datacenter-in-a-Box (Containerized)
+#
+# Usage:
+#   podman compose up -d        # Start the datacenter
+#   podman compose down          # Stop (preserves data)
+#   podman compose down -v       # Stop and destroy all state
+#
+# After first boot, ArgoCD syncs all components from Git:
+#   KubeVirt, CDI, Keycloak, Backstage, Harbor, Monitoring, KubeVirt Manager
+
+services:
+  k3s-server:
+    image: rancher/k3s:${K3S_VERSION:-v1.35.5-k3s1}
+    command: >-
+      server
+      --disable=traefik
+      --disable=servicelb
+      --tls-san=k3s-server
+      --tls-san=localhost
+      --write-kubeconfig-mode=644
+      --kubelet-arg=max-pods=150
+    privileged: true
+    cgroupns: host
+    tmpfs:
+      - /run
+      - /var/run
+    ulimits:
+      nproc: 65535
+      nofile:
+        soft: 65535
+        hard: 65535
+    volumes:
+      - k3s-data:/var/lib/rancher/k3s
+      - k3s-output:/output
+    environment:
+      K3S_KUBECONFIG_OUTPUT: /output/kubeconfig.yaml
+      K3S_KUBECONFIG_MODE: "644"
+    ports:
+      # Kubernetes API
+      - "6443:6443"
+      # Service UIs (NodePorts)
+      - "30080:30080"   # KubeVirt Manager
+      - "30081:30081"   # Backstage
+      - "30082:30082"   # ArgoCD
+      - "30083:30083"   # Keycloak
+      - "30084:30084"   # Grafana
+      - "30085:30085"   # Harbor
+    devices:
+      - /dev/kvm:/dev/kvm
+    healthcheck:
+      test: ["CMD", "sh", "-c", "kubectl get nodes 2>/dev/null | grep -q ' Ready'"]
+      interval: 10s
+      timeout: 5s
+      retries: 40
+      start_period: 30s
+    restart: unless-stopped
+
+  bootstrap:
+    image: rancher/k3s:${K3S_VERSION:-v1.35.5-k3s1}
+    depends_on:
+      k3s-server:
+        condition: service_healthy
+    volumes:
+      - k3s-output:/output:ro
+      - ./gitops:/gitops:ro
+      - ./scripts:/scripts:ro
+    environment:
+      KUBECONFIG: /tmp/kubeconfig.yaml
+      REPO_URL: ${REPO_URL:-https://github.com/stevebestone/local-dc.git}
+      TARGET_REVISION: ${TARGET_REVISION:-main}
+    entrypoint: ["/bin/sh", "/scripts/bootstrap.sh"]
+    restart: "no"
+
+volumes:
+  k3s-data:
+  k3s-output:

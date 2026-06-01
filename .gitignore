@@ -44,3 +44,9 @@ dist-types/
 
 # Logs
 *.log
+
+# Compose — .env has non-secret defaults and IS committed.
+# Use .env.local for overrides (gitignored).
+!.env
+.env.local
+.env.override
