@@ -377,7 +377,9 @@ data:
           "secret": "${env.ARGOCD_OIDC_SECRET:argocd-secret-change-me}",
           "redirectUris": [
             "http://192.168.1.105:30082/auth/callback",
-            "http://localhost:30082/auth/callback"
+            "http://localhost:30082/auth/callback",
+            "http://192.168.1.105:30083/*",
+            "http://localhost:30083/*"
           ],
           "webOrigins": [
             "*"
