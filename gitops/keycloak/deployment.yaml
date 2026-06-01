@@ -13,7 +13,7 @@ spec:
       labels:
         app: keycloak
       annotations:
-        config-hash: "v3-argocd-redirect-fix"
+        config-hash: "v4-fix-h2-idle-drop"
     spec:
       containers:
         - name: keycloak
@@ -29,6 +29,10 @@ spec:
           env:
             - name: KC_DB
               value: dev-mem
+            - name: KC_DB_POOL_INITIAL_SIZE
+              value: "1"
+            - name: KC_DB_POOL_MIN_SIZE
+              value: "1"
             - name: KC_PROXY_HEADERS
               value: xforwarded
             - name: KC_HTTP_RELATIVE_PATH
