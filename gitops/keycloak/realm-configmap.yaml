@@ -389,6 +389,9 @@ data:
             "profile",
             "email",
             "groups"
+          ],
+          "optionalClientScopes": [
+            "openid"
           ]
         },
         {

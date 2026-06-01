@@ -13,7 +13,7 @@ spec:
       labels:
         app: keycloak
       annotations:
-        config-hash: "v6-remove-openid-from-scopes"
+        config-hash: "v7-openid-optional-scope"
     spec:
       containers:
         - name: keycloak

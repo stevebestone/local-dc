@@ -37,7 +37,7 @@ resource "helm_release" "argocd" {
       issuer       = "http://${var.host_ip}:30083/realms/local-dc"
       clientID     = "argocd"
       clientSecret = "$oidc.keycloak.clientSecret"
-      requestedScopes = ["profile", "email", "groups"]
+      requestedScopes = ["openid", "profile", "email", "groups"]
     })
   }
 
