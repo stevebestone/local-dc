@@ -13,7 +13,7 @@ spec:
       labels:
         app: keycloak
       annotations:
-        config-hash: "v2-platform-admin"
+        config-hash: "v3-argocd-redirect-fix"
     spec:
       containers:
         - name: keycloak

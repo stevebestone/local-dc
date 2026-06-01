@@ -254,8 +254,8 @@ data:
           "publicClient": false,
           "secret": "${env.ARGOCD_OIDC_SECRET:argocd-secret-change-me}",
           "redirectUris": [
-            "http://192.168.1.105:30082/*",
-            "http://localhost:30082/*"
+            "http://192.168.1.105:30082/auth/callback",
+            "http://localhost:30082/auth/callback"
           ],
           "webOrigins": [
             "*"
