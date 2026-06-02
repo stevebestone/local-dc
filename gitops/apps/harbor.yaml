@@ -3,6 +3,8 @@ kind: Application
 metadata:
   name: harbor
   namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "30"
 spec:
   project: default
   source:
@@ -61,5 +63,11 @@ spec:
     automated:
       prune: true
       selfHeal: true
+    retry:
+      limit: 5
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 3m
     syncOptions:
       - CreateNamespace=true

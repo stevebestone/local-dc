@@ -1,11 +1,17 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
+  # Wave 10: identity provider (OIDC for all services)
+  - keycloak.yaml
+  # Wave 20: monitoring stack (Prometheus + Grafana)
+  - monitoring.yaml
+  # Wave 30: container registry
+  - harbor.yaml
+  # Wave 40: virtualization platform
   - kubevirt.yaml
   - cdi.yaml
+  # Wave 50: virtualization UI and VM manifests
   - kubevirt-manager.yaml
   - vms.yaml
-  - keycloak.yaml
-  - monitoring.yaml
-  - harbor.yaml
+  # Wave 60: developer portal (depends on identity + virtualization)
   - backstage.yaml

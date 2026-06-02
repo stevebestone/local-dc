@@ -3,6 +3,8 @@ kind: Application
 metadata:
   name: monitoring
   namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "20"
 spec:
   project: default
   source:
@@ -76,6 +78,12 @@ spec:
     automated:
       prune: true
       selfHeal: true
+    retry:
+      limit: 5
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 3m
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true

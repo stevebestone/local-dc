@@ -44,3 +44,9 @@ dist-types/
 
 # Logs
 *.log
+
+# OpenTofu / Terraform
+tofu/.terraform/
+tofu/*.tfstate
+tofu/*.tfstate.*
+tofu/.terraform.lock.hcl

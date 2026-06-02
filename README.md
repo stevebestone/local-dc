@@ -74,30 +74,46 @@ sudo ./setup.sh
 ```
 
 The setup script:
-1. Installs system dependencies + Podman (removes Docker if present)
-2. Installs k3s
-3. Installs ArgoCD
-4. Creates the root App-of-Apps (ArgoCD syncs everything else from Git)
+1. Checks prerequisites (VT-x, /dev/kvm)
+2. Installs k3s natively
+3. Installs OpenTofu and Helm (if not present)
+4. Runs `tofu apply` to deploy ArgoCD (Helm chart) and the root App-of-Apps
 5. Installs virtctl CLI
 
-After setup, ArgoCD automatically deploys: KubeVirt, CDI, KubeVirt Manager, Keycloak, and Backstage.
+After setup, ArgoCD automatically deploys components in dependency order (sync-waves):
+
+1. **Keycloak** — identity provider (OIDC for all services)
+2. **Monitoring** — Prometheus + Grafana
+3. **Harbor** — container registry
+4. **KubeVirt + CDI** — virtualization platform
+5. **KubeVirt Manager + VMs** — VM dashboard and manifests
+6. **Backstage** — developer portal (last, depends on everything)
+
+### Lifecycle
+
+```bash
+# View cluster status
+export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
+kubectl get pods -A
+
+# Tear down ArgoCD + apps (keeps k3s)
+tofu -chdir=tofu destroy
+
+# Uninstall k3s entirely
+/usr/local/bin/k3s-uninstall.sh
+```
 
 ### Build Custom Backstage Image
 
 The custom Backstage image includes GitHub OAuth, OIDC (Keycloak), Kubernetes, TechDocs, and other plugins.
 
 ```bash
-# Install build dependencies (one-time)
-sudo apt-get install -y python3 g++ build-essential libsqlite3-dev
+# Build and import into k3s (requires Podman or Docker)
+./scripts/import-backstage.sh
 
-# Build with Podman
-podman build -t localhost/backstage-idp:latest \
-  -f backstage/Dockerfile backstage/
-
-# Import into k3s
-podman save localhost/backstage-idp:latest -o /tmp/backstage.tar
-sudo ctr -n k8s.io images import /tmp/backstage.tar
-rm /tmp/backstage.tar
+# Or manually:
+podman build -t localhost/backstage-idp:latest -f backstage/Dockerfile backstage/
+podman save localhost/backstage-idp:latest | sudo ctr -n k8s.io images import -
 ```
 
 ## Login Procedures
@@ -243,19 +259,30 @@ virtctl vnc <vm-name> -n developers        # graphical
 
 ```
 local-dc/
-├── setup.sh                          # Bootstrap script
-├── ansible/
-│   ├── inventory.yml                 # Localhost inventory
-│   └── playbook.yml                  # k3s + ArgoCD + Podman + virtctl
+├── setup.sh                          # Bootstrap: k3s install + tofu apply
+├── tofu/                             # OpenTofu IaC (ArgoCD + App-of-Apps)
+│   ├── versions.tf                   # Required providers
+│   ├── variables.tf                  # Inputs (kubeconfig, repo, host IP)
+│   ├── providers.tf                  # Kubernetes + Helm providers
+│   ├── argocd.tf                     # ArgoCD Helm release + OIDC/RBAC config
+│   ├── apps.tf                       # Root App-of-Apps
+│   └── outputs.tf                    # URLs and credential commands
+├── scripts/
+│   └── import-backstage.sh           # Build + import Backstage image
+├── ansible/                          # Alternative: Ansible-based bootstrap
+│   ├── inventory.yml
+│   └── playbook.yml
 ├── gitops/
-│   ├── apps/                         # ArgoCD App-of-Apps
-│   │   ├── kubevirt.yaml
-│   │   ├── cdi.yaml
-│   │   ├── kubevirt-manager.yaml
-│   │   ├── keycloak.yaml
-│   │   ├── backstage.yaml
-│   │   └── vms.yaml
-│   ├── argocd/                       # ArgoCD install + OIDC config
+│   ├── apps/                         # ArgoCD App-of-Apps (sync-wave ordered)
+│   │   ├── keycloak.yaml             # Wave 10
+│   │   ├── monitoring.yaml           # Wave 20
+│   │   ├── harbor.yaml               # Wave 30
+│   │   ├── kubevirt.yaml             # Wave 40
+│   │   ├── cdi.yaml                  # Wave 40
+│   │   ├── kubevirt-manager.yaml     # Wave 50
+│   │   ├── vms.yaml                  # Wave 50
+│   │   └── backstage.yaml            # Wave 60
+│   ├── argocd/                       # ArgoCD namespace
 │   ├── backstage/                    # Backstage deployment (platform ns)
 │   ├── keycloak/                     # Keycloak deployment + realm config
 │   ├── kubevirt/                     # KubeVirt operator + CR
@@ -263,11 +290,10 @@ local-dc/
 │   ├── kubevirt-manager/             # VM dashboard + NodePort patch
 │   └── vms/                          # Developer VMs (developers ns)
 ├── backstage/                        # Backstage app source + Dockerfile
-├── backstage-templates/              # Scaffolder templates + org catalog
-│   ├── org.yaml                      # Users and groups
-│   ├── ubuntu-vm.yaml                # Ubuntu VM template
-│   └── linuxmint-vm.yaml            # Linux Mint VM template
-└── datacenter.yaml                   # Lima config (macOS development)
+└── backstage-templates/              # Scaffolder templates + org catalog
+    ├── org.yaml                      # Users and groups
+    ├── ubuntu-vm.yaml                # Ubuntu VM template
+    └── linuxmint-vm.yaml             # Linux Mint VM template
 ```
 
 ## GitOps Workflow
@@ -305,12 +331,14 @@ The custom Backstage image includes:
 
 ## Supported Distros
 
-The setup script auto-detects and supports:
-- **Ubuntu/Debian** (apt)
-- **Fedora** (dnf)
-- **Bazzite / Fedora Atomic** (rpm-ostree)
+The setup script requires:
+- **Linux** with VT-x/AMD-V and `/dev/kvm`
+- **curl** (installed automatically if missing)
 
-Docker is removed and replaced with **Podman** on all distros.
+Tested on Ubuntu. Other distros (Fedora, Bazzite) should work via the Ansible alternative:
+```bash
+sudo ansible-playbook -i ansible/inventory.yml ansible/playbook.yml --become
+```
 
 ## License
 

@@ -2,7 +2,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: backstage-templates
-  namespace: backstage
+  namespace: platform
 data:
   linux-dev-vm.yaml: |
     apiVersion: scaffolder.backstage.io/v1beta3
