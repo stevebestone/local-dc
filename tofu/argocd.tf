@@ -34,7 +34,7 @@ resource "helm_release" "argocd" {
     name  = "configs.cm.oidc\\.config"
     value = yamlencode({
       name         = "Keycloak"
-      issuer       = "http://localhost:30083/realms/local-dc"
+      issuer       = "http://10.42.0.1:30083/realms/local-dc"
       clientID     = "argocd"
       clientSecret = "$oidc.keycloak.clientSecret"
       requestedScopes = ["openid", "profile", "email", "groups"]
